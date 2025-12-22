@@ -90,14 +90,21 @@ exports.onMembershipWrite = onDocumentWritten({
     try {
         const userRecord = await auth.getUser(userId);
         const existingClaims = userRecord.customClaims || {};
+        // Preserve Global Roles (Super Admin)
         if (existingClaims.roles && existingClaims.roles.globalRole) {
             newClaims.roles.globalRole = existingClaims.roles.globalRole;
         }
     } catch (e) {
         console.error("Error fetching user for claims sync:", e);
-        return; // Exit if user doesn't exist
+        // CRITICAL FIX: If user is not found, stop. Otherwise, THROW to retry.
+        if (e.code === 'auth/user-not-found') {
+            console.log(`User ${userId} no longer exists. Skipping sync.`);
+            return; 
+        }
+        throw e; // Rethrow to ensure Firebase retries this function on network error
     }
 
+    // Fetch all memberships to rebuild the claims
     const memSnap = await db.collection("memberships").where("userId", "==", userId).get();
     memSnap.forEach(doc => {
         const m = doc.data();
@@ -107,6 +114,7 @@ exports.onMembershipWrite = onDocumentWritten({
     });
 
     await auth.setCustomUserClaims(userId, newClaims);
+    console.log(`Claims synced for user ${userId}`);
 });
 
 // --- 3. DELETE USER (Scoped) ---
@@ -164,20 +172,20 @@ exports.deletePortalUser = onCall({ maxInstances: 2 }, async (request) => {
     throw new HttpsError("internal", error.message);
   }
 });
-    
+
 // --- 4. UPDATE USER (Name/Email) ---
-    exports.updatePortalUser = onCall({ maxInstances: 2 }, async (request) => {
-        if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+exports.updatePortalUser = onCall({ maxInstances: 2 }, async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
 
-        const { userId, companyId, name, email } = request.data;
+    const { userId, companyId, name, email } = request.data;
 
-        const roles = request.auth.token.roles || {};
-        const isSuperAdmin = roles.globalRole === "super_admin";
-        const isCompanyAdmin = companyId && roles[companyId] === "company_admin";
+    const roles = request.auth.token.roles || {};
+    const isSuperAdmin = roles.globalRole === "super_admin";
+    const isCompanyAdmin = companyId && roles[companyId] === "company_admin";
 
-        if (!isSuperAdmin && !isCompanyAdmin) {
-            throw new HttpsError("permission-denied", "Permission denied.");
-        }
+    if (!isSuperAdmin && !isCompanyAdmin) {
+        throw new HttpsError("permission-denied", "Permission denied.");
+    }
 
     try {
         const updateData = {};
