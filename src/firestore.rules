@@ -122,7 +122,12 @@ service cloud.firestore {
     // 5. MEMBERSHIPS (Role Links)
     match /memberships/{membershipId} {
       allow read: if isSignedIn();
-      allow write: if isSuperAdmin() || isSignedIn(); // Allow invites logic
+      
+      // SECURITY FIX: Explicitly restrict writes to Admins
+      // Only Super Admins, or Company Admins managing their OWN company, can modify memberships.
+      allow create: if isSuperAdmin() || isCompanyAdmin(request.resource.data.companyId);
+      allow update: if isSuperAdmin() || (isCompanyAdmin(resource.data.companyId) && isCompanyAdmin(request.resource.data.companyId));
+      allow delete: if isSuperAdmin() || isCompanyAdmin(resource.data.companyId);
     }
 
     // 6. NOTIFICATIONS

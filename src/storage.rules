@@ -51,8 +51,18 @@ service firebase.storage {
       // HR Team and Driver can READ their files
       allow read: if isOwner(applicantId) || isCompanyTeam(companyId);
       
-      // PUBLIC WRITE: Allows guests (and the System Test) to upload CDLs
-      allow write: if true; 
+      // PUBLIC WRITE: Restricted Security Fix
+      // Allows guests to upload, BUT enforces file type and size limits to prevent abuse.
+      allow write: if (
+        // Option A: Authenticated System/Owner
+        (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId))) ||
+        
+        // Option B: Public Guest (Strict Limits)
+        (
+          request.resource.size < 10 * 1024 * 1024 && // Max 10MB
+          request.resource.contentType.matches('application/pdf|image/.*') // Only PDF or Images
+        )
+      );
     }
 
     // 4. GLOBAL LEADS FILES
@@ -68,7 +78,7 @@ service firebase.storage {
     
     // 6. FALLBACK (Deny everything else)
     match /{allPaths=**} {
-      allow read, write: if false; 
+      allow read, write: if false;
     }
   }
 }
