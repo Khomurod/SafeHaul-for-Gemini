@@ -5,7 +5,7 @@ import {
   updateMembershipRole,
   deleteMembership
 } from '@features/auth/services/userService';
-import { Trash2, Plus, AlertCircle, RefreshCw } from 'lucide-react';
+import { Trash2, Plus, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 
 // --- MembershipItem Component ---
 function MembershipItem({ membership, companyName, onUpdate, onRemove }) {

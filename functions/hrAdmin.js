@@ -11,15 +11,21 @@ exports.createPortalUser = onCall({ maxInstances: 2 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
 
   const roles = request.auth.token.roles || {};
-  const isSuperAdmin = roles.globalRole === "super_admin";
 
+  // Security Check: Only a Super Admin can create another Super Admin
   if (role === "super_admin") {
-    if (!isSuperAdmin) throw new HttpsError("permission-denied", "Super Admin only.");
-  } else if (role === "company_admin" || role === "hr_user") {
+     const isGlobalSuperAdmin = roles.globalRole === "super_admin";
+     if (!isGlobalSuperAdmin) throw new HttpsError("permission-denied", "Only Super Admins can create other Super Admins.");
+  }
+
+  // Security Check: Regular admins can only add to their own company
+  if (role === "company_admin" || role === "hr_user") {
     const isAdminForThisCompany = roles[companyId] === "company_admin";
-    if (!isSuperAdmin && !isAdminForThisCompany) throw new HttpsError("permission-denied", "Permission denied.");
-  } else {
-    throw new HttpsError("invalid-argument", "Invalid role.");
+    const isGlobalSuperAdmin = roles.globalRole === "super_admin";
+
+    if (!isGlobalSuperAdmin && !isAdminForThisCompany) {
+        throw new HttpsError("permission-denied", "You do not have permission to add users to this company.");
+    }
   }
 
   let userId;
@@ -50,10 +56,12 @@ exports.createPortalUser = onCall({ maxInstances: 2 }, async (request) => {
         }
     }
 
+    // Check if membership already exists to prevent duplicates
     const memQuery = await db.collection("memberships")
         .where("userId", "==", userId)
         .where("companyId", "==", companyId)
         .get();
+
     if (!memQuery.empty) {
         return { status: "success", message: "User is already in this company." };
     }
@@ -74,7 +82,7 @@ exports.createPortalUser = onCall({ maxInstances: 2 }, async (request) => {
   }
 });
 
-// --- 2. SYNC CLAIMS TRIGGER ---
+// --- 2. SYNC CLAIMS TRIGGER (The Critical Fix) ---
 exports.onMembershipWrite = onDocumentWritten({
     document: "memberships/{membershipId}",
     maxInstances: 2
@@ -86,38 +94,44 @@ exports.onMembershipWrite = onDocumentWritten({
     if (!userId) return;
 
     let newClaims = { roles: {} };
+    let isGlobalAdmin = false;
 
     try {
-        const userRecord = await auth.getUser(userId);
-        const existingClaims = userRecord.customClaims || {};
-        // Preserve Global Roles (Super Admin)
-        if (existingClaims.roles && existingClaims.roles.globalRole) {
-            newClaims.roles.globalRole = existingClaims.roles.globalRole;
-        }
+        // We verify the user exists before trying to set claims
+        await auth.getUser(userId);
     } catch (e) {
         console.error("Error fetching user for claims sync:", e);
-        // CRITICAL FIX: If user is not found, stop. Otherwise, THROW to retry.
-        if (e.code === 'auth/user-not-found') {
-            console.log(`User ${userId} no longer exists. Skipping sync.`);
-            return; 
-        }
-        throw e; // Rethrow to ensure Firebase retries this function on network error
+        if (e.code === 'auth/user-not-found') return; 
+        throw e; 
     }
 
-    // Fetch all memberships to rebuild the claims
+    // Fetch ALL memberships to rebuild the permissions from scratch
     const memSnap = await db.collection("memberships").where("userId", "==", userId).get();
+
     memSnap.forEach(doc => {
         const m = doc.data();
+
+        // CRITICAL FIX: Detect the super_admin role and set the global flag
+        if (m.role === 'super_admin') {
+            isGlobalAdmin = true;
+        }
+
+        // Add company-specific roles
         if (m.companyId && m.role) {
             newClaims.roles[m.companyId] = m.role;
         }
     });
 
+    // Apply the Global Role if found
+    if (isGlobalAdmin) {
+        newClaims.roles.globalRole = 'super_admin';
+    }
+
     await auth.setCustomUserClaims(userId, newClaims);
-    console.log(`Claims synced for user ${userId}`);
+    console.log(`Claims synced for user ${userId}. Global Admin: ${isGlobalAdmin}`);
 });
 
-// --- 3. DELETE USER (Scoped) ---
+// --- 3. DELETE USER ---
 exports.deletePortalUser = onCall({ maxInstances: 2 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
 
@@ -134,7 +148,7 @@ exports.deletePortalUser = onCall({ maxInstances: 2 }, async (request) => {
 
   try {
     if (isSuperAdmin && !companyId) {
-        // Super Admin Force Delete (Everything)
+        // Super Admin Force Delete
         await auth.deleteUser(userId);
         await db.collection("users").doc(userId).delete();
         const membershipsSnap = await db.collection("memberships").where("userId", "==", userId).get();
@@ -143,7 +157,7 @@ exports.deletePortalUser = onCall({ maxInstances: 2 }, async (request) => {
         await batch.commit();
         return { message: "User completely deleted." };
     } else {
-        // Company Admin Delete (Remove Membership)
+        // Company Admin remove
         const memQuery = await db.collection("memberships")
             .where("userId", "==", userId)
             .where("companyId", "==", companyId)
@@ -153,10 +167,9 @@ exports.deletePortalUser = onCall({ maxInstances: 2 }, async (request) => {
         memQuery.forEach((doc) => batch.delete(doc.ref));
         await batch.commit();
 
-        // Check if user has any OTHER memberships
+        // Cleanup orphaned users
         const remaining = await db.collection("memberships").where("userId", "==", userId).get();
         if (remaining.empty) {
-            // Orphaned user -> Delete account
             try {
                 await auth.deleteUser(userId);
                 await db.collection("users").doc(userId).delete();
@@ -173,7 +186,7 @@ exports.deletePortalUser = onCall({ maxInstances: 2 }, async (request) => {
   }
 });
 
-// --- 4. UPDATE USER (Name/Email) ---
+// --- 4. UPDATE USER ---
 exports.updatePortalUser = onCall({ maxInstances: 2 }, async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
 
@@ -211,7 +224,7 @@ exports.updatePortalUser = onCall({ maxInstances: 2 }, async (request) => {
     }
 });
 
-// --- 5. JOIN TEAM (Invite) ---
+// --- 5. JOIN TEAM ---
 exports.joinCompanyTeam = onCall({ maxInstances: 2 }, async (request) => {
     const { companyId, fullName, email, password } = request.data;
 
