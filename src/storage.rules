@@ -12,11 +12,14 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Check if user is Super Admin
+    // Check if user is Super Admin (Fixed to match Firestore logic)
     function isSuperAdmin() {
        return isSignedIn() && (
          request.auth.token.email == 'admin@trucking.com' || 
-         (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin')
+         // Check top-level custom claim
+         (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin') ||
+         // Check nested custom claim (standard for this app)
+         (request.auth.token.keys().hasAny(['roles']) && request.auth.token.roles.keys().hasAny(['globalRole']) && request.auth.token.roles.globalRole == 'super_admin')
       );
     }
 
