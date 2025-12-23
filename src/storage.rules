@@ -6,10 +6,9 @@ service firebase.storage {
     function isSignedIn() { return request.auth != null; }
     function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
     
-    // CRITICAL FIX: Aligned with Firestore logic to support nested 'roles.globalRole'
+    // FIXED: Aligned with Firestore. Removed hardcoded email.
     function isSuperAdmin() {
        return isSignedIn() && (
-         request.auth.token.email == 'admin@trucking.com' || 
          (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin') ||
          (request.auth.token.keys().hasAny(['roles']) && request.auth.token.roles.keys().hasAny(['globalRole']) && request.auth.token.roles.globalRole == 'super_admin')
       );
@@ -58,7 +57,7 @@ service firebase.storage {
       // 1. Super Admin: BYPASSES 'isValidFile' (Allows .txt for diagnostics)
       // 2. Auth User: Standard validation
       // 3. Guest: Strict validation
-      allow write: if (isSuperAdmin()) || 
+      allow write: if (isSuperAdmin()) ||
                       (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId)) && isValidFile()) ||
                       (!isSignedIn() && isValidGuestFile());
     }
