@@ -3,16 +3,10 @@ service firebase.storage {
   match /b/{bucket}/o {
     
     // --- HELPERS ---
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Check if user owns the folder (matches their UID)
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    // Check if user is Super Admin
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    
+    // CRITICAL FIX: Aligned with Firestore logic to support nested 'roles.globalRole'
     function isSuperAdmin() {
        return isSignedIn() && (
          request.auth.token.email == 'admin@trucking.com' || 
@@ -21,71 +15,62 @@ service firebase.storage {
       );
     }
 
-    // Check if user is part of the company team
     function isCompanyTeam(companyId) {
       return isSignedIn() && (
-        isSuperAdmin() || 
+        isSuperAdmin() ||
         (
-          request.auth.token.keys().hasAny(['roles']) &&
-          request.auth.token.roles.keys().hasAny([companyId]) &&
-          request.auth.token.roles[companyId] in ['company_admin', 'hr_user']
+          request.auth.token.keys().hasAny(['roles']) && 
+          request.auth.token.roles.keys().hasAny([companyId]) && 
+          request.auth.token.roles[companyId] in ['company_admin', 'hr_user', 'recruiter']
         )
       );
     }
     
-    // Validate file type and size for uploads
+    // Validation
     function isValidFile() {
-      return request.resource.size < 10 * 1024 * 1024 && // Max 10MB
+      return request.resource.size < 10 * 1024 * 1024 &&
              request.resource.contentType.matches('application/pdf|image/png|image/jpeg|image/gif|image/webp');
     }
-    
+
+    function isValidGuestFile() {
+      return request.resource.size < 5 * 1024 * 1024 && 
+             request.resource.contentType.matches('application/pdf|image/png|image/jpeg');
+    }
+
     // --- RULES ---
 
-    // 1. COMPANY ASSETS (Logos, branding)
+    // 1. Company Assets
     match /company_assets/{companyId}/{allPaths=**} {
       allow read: if true;
       allow write: if isCompanyTeam(companyId) && isValidFile();
     }
 
-    // 2. MASTER DRIVER PROFILE UPLOADS
+    // 2. Driver Private Documents
     match /drivers/{driverId}/{allPaths=**} {
-      allow read: if isOwner(driverId) || isSuperAdmin();
-      allow write: if (isOwner(driverId) || isSuperAdmin()) && isValidFile();
+      allow read, write: if isOwner(driverId) || isSuperAdmin();
     }
 
-    // 3. COMPANY APPLICATION FILES
-    // Path: companies/{companyId}/applications/{applicantId}/...
+    // 3. Application Attachments
     match /companies/{companyId}/applications/{applicantId}/{allPaths=**} {
-      // Read: HR Team or the applicant who owns the files
       allow read: if isOwner(applicantId) || isCompanyTeam(companyId);
       
-      // Write: Authenticated users with proper validation
-      allow write: if (
-        // Authenticated owner or company team with file validation
-        (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId)) && isValidFile()) ||
-        
-        // Public guest uploads (for apply without login) - strict limits
-        (
-          request.resource.size < 5 * 1024 * 1024 && // Max 5MB for guests
-          request.resource.contentType.matches('application/pdf|image/png|image/jpeg|image/gif')
-        )
-      );
+      // Write Logic:
+      // 1. Super Admin: BYPASSES 'isValidFile' (Allows .txt for diagnostics)
+      // 2. Auth User: Standard validation
+      // 3. Guest: Strict validation
+      allow write: if (isSuperAdmin()) || 
+                      (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId)) && isValidFile()) ||
+                      (!isSignedIn() && isValidGuestFile());
     }
 
-    // 4. GLOBAL LEADS FILES
+    // 4. Global Leads Files
     match /global_leads/{applicantId}/{allPaths=**} {
-      allow read: if isOwner(applicantId) || isSuperAdmin();
-      allow write: if (isOwner(applicantId) || isSuperAdmin()) && isValidFile();
-    }
-
-    // 5. SYSTEM HEALTH DIAGNOSTICS (Super Admin only in production)
-    match /system_health_tests/{fileName} {
-      allow read, write: if isSuperAdmin();
+      allow read, write: if isOwner(applicantId) || isSuperAdmin();
     }
     
-    // 6. FALLBACK (Deny everything else)
-    match /{allPaths=**} {
-      allow read, write: if false;
+    // 5. System Health Tests (The .txt upload test)
+    match /system_health_tests/{fileName} {
+      allow read, write: if isSuperAdmin();
     }
   }
 }
