@@ -431,4 +431,123 @@ export function useSystemHealth() {
                 // 2. Check if file actually exists in Storage
                 try {
                     const fileRef = ref(storage, storedPath);
-                    a
+                    await getDownloadURL(fileRef);
+                    addLog("✅ Database <-> Storage Alignment OK.", "success");
+                } catch (storageErr) {
+                    throw new Error(`Integrity Fail: File in DB but not in Storage. Path: ${storedPath}`);
+                }
+                break;
+
+            case 'cleanup':
+                addLog("🧹 Starting cleanup...", "info");
+                const data = testDataRef.current;
+
+                // Delete test companies and their subcollections
+                if (data.companyId) {
+                    try {
+                        // Delete applications
+                        const appsQuery = query(collection(db, 'companies', data.companyId, 'applications'));
+                        const appsSnap = await getDocs(appsQuery);
+                        for (const appDoc of appsSnap.docs) {
+                            await deleteDoc(appDoc.ref);
+                        }
+                        // Delete leads
+                        const leadsQuery = query(collection(db, 'companies', data.companyId, 'leads'));
+                        const leadsSnap = await getDocs(leadsQuery);
+                        for (const leadDoc of leadsSnap.docs) {
+                            await deleteDoc(leadDoc.ref);
+                        }
+                        await deleteDoc(doc(db, 'companies', data.companyId));
+                    } catch (e) {
+                        console.error("Cleanup company A error:", e);
+                    }
+                }
+
+                if (data.companyIdB) {
+                    try {
+                        await deleteDoc(doc(db, 'companies', data.companyIdB));
+                    } catch (e) {
+                        console.error("Cleanup company B error:", e);
+                    }
+                }
+
+                if (data.driverId) {
+                    try {
+                        await deleteDoc(doc(db, 'drivers', data.driverId));
+                    } catch (e) {
+                        console.error("Cleanup driver error:", e);
+                    }
+                }
+
+                if (data.globalLeadId) {
+                    try {
+                        await deleteDoc(doc(db, 'leads', data.globalLeadId));
+                    } catch (e) {
+                        console.error("Cleanup global lead error:", e);
+                    }
+                }
+
+                // Delete test storage files
+                if (data.fileRefPath) {
+                    try {
+                        await deleteObject(ref(storage, data.fileRefPath));
+                    } catch (e) {
+                        console.error("Cleanup storage file error:", e);
+                    }
+                }
+
+                if (data.cdlPath) {
+                    try {
+                        await deleteObject(ref(storage, data.cdlPath));
+                    } catch (e) {
+                        console.error("Cleanup CDL file error:", e);
+                    }
+                }
+
+                // Delete test memberships
+                try {
+                    const memQuery = query(collection(db, 'memberships'), where("isTestRecord", "==", true));
+                    const memSnap = await getDocs(memQuery);
+                    for (const memDoc of memSnap.docs) {
+                        await deleteDoc(memDoc.ref);
+                    }
+                } catch (e) {
+                    console.error("Cleanup memberships error:", e);
+                }
+
+                addLog("✅ All test data cleaned up.", "success");
+                break;
+
+            default:
+                addLog(`⚠️ Unknown step: ${stepId}`, "warning");
+        }
+    };
+
+    const pauseDiagnostics = () => {
+        abortController.current?.abort();
+        setStatus('paused');
+        addLog("⏸️ Diagnostics Paused.", "warning");
+    };
+
+    const resetDiagnostics = () => {
+        abortController.current?.abort();
+        setStatus('idle');
+        setCurrentStepIndex(0);
+        setProgress(0);
+        setLogs([]);
+        setTestData({});
+        testDataRef.current = {};
+        localStorage.removeItem(STORAGE_KEY);
+    };
+
+    return {
+        status,
+        currentStep: STEPS[currentStepIndex],
+        progress,
+        logs,
+        steps: STEPS,
+        runDiagnostics,
+        pauseDiagnostics,
+        resetDiagnostics
+    };
+}
