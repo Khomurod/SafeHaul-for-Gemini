@@ -49,25 +49,67 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Validate required fields exist in application create and applicantId matches auth
+    function isValidAuthenticatedApplication() {
+      return request.resource.data.keys().hasAll(['applicantId', 'companyId']) &&
+             request.resource.data.applicantId == request.auth.uid &&
+             request.resource.data.companyId is string;
+    }
+
+    // Validate guest application has required fields (for public apply without login)
+    function isValidGuestApplication(companyId) {
+      return request.resource.data.keys().hasAll(['applicantId', 'companyId', 'personalInfo']) &&
+             request.resource.data.companyId == companyId &&
+             request.resource.data.applicantId is string &&
+             request.resource.data.personalInfo.keys().hasAny(['firstName', 'email']);
+    }
+
     // --- COLLECTION RULES ---
 
+    // 1. COMPANIES
     match /companies/{companyId} {
+      // Public read for company info (needed for public apply pages)
       allow read: if true;
       allow create, delete: if isSuperAdmin();
       allow update: if isCompanyAdmin(companyId);
 
+      // 1a. APPLICATIONS (Nested under company)
       match /applications/{applicationId} {
-        allow create: if true;
-        allow update: if isOwner(applicationId) || isCompanyTeam(companyId);
-        allow read: if isCompanyTeam(companyId) || isOwner(applicationId);
+        // Create: 
+        // - Authenticated users: applicantId MUST match their UID (prevents impersonation)
+        // - Guest users: Must have required fields for a valid application submission
+        allow create: if (
+          (isSignedIn() && isValidAuthenticatedApplication()) ||
+          (!isSignedIn() && isValidGuestApplication(companyId))
+        );
+        
+        // Read: Company team or the authenticated applicant who owns the application
+        allow read: if isCompanyTeam(companyId) || 
+                      (isSignedIn() && request.auth.uid == resource.data.applicantId);
+        
+        // Update: 
+        // - Company team can update any application
+        // - Authenticated owner can only update if their UID matches the existing applicantId
+        // - Additionally prevent changing applicantId or companyId (immutable fields)
+        allow update: if isCompanyTeam(companyId) || 
+                       (
+                         isSignedIn() && 
+                         request.auth.uid == resource.data.applicantId &&
+                         request.resource.data.applicantId == resource.data.applicantId &&
+                         request.resource.data.companyId == resource.data.companyId
+                       );
+        
+        // Delete: Only company team
         allow delete: if isCompanyTeam(companyId);
         
+        // Application sub-collections (HR only)
         match /dq_files/{fileId} { allow read, write: if isCompanyTeam(companyId); }
         match /general_documents/{fileId} { allow read, write: if isCompanyTeam(companyId); }
         match /internal_notes/{noteId} { allow read, write: if isCompanyTeam(companyId); }
         match /activities/{activityId} { allow read, write: if isCompanyTeam(companyId); }
       }
 
+      // 1b. COMPANY LEADS
       match /leads/{leadId} {
         allow read, write: if isCompanyTeam(companyId);
         match /activity_logs/{logId} { allow read, write: if isCompanyTeam(companyId); }
@@ -75,44 +117,57 @@ service cloud.firestore {
         match /internal_notes/{noteId} { allow read, write: if isCompanyTeam(companyId); }
       }
       
+      // 1c. COMPANY TEAM
       match /team/{userId} {
         allow read: if isSignedIn();
         allow write: if isCompanyAdmin(companyId);
       }
     }
 
+    // 2. GLOBAL LEADS (Platform-wide leads)
     match /leads/{leadId} {
-      allow create, update: if isOwner(leadId);
-      allow read: if isSuperAdmin();
+      allow create: if isSignedIn();
+      allow update: if isOwner(leadId) || isSuperAdmin();
+      allow read: if isSuperAdmin() || isOwner(leadId);
     }
 
+    // 3. DRIVERS (Master driver profiles)
     match /drivers/{driverId} {
-      allow read, write: if isOwner(driverId) || isSuperAdmin();
+      allow read: if isOwner(driverId) || isSuperAdmin() || isStaff();
+      allow create: if isSignedIn() && request.auth.uid == driverId;
+      allow update: if isOwner(driverId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+      
       match /drafts/{draftId} {
         allow read, write: if isOwner(driverId);
       }
     }
 
+    // 4. USERS (Portal user profiles)
     match /users/{userId} {
       allow read: if isOwner(userId) || isStaff() || isSuperAdmin();
-      allow write: if isOwner(userId) || isSuperAdmin();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isOwner(userId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // 5. MEMBERSHIPS (Role Links) - SECURED
     match /memberships/{membershipId} {
-      allow read: if isSignedIn();
+      // Read: Only see your own memberships or if you're admin for that company
+      allow read: if isSignedIn() && (
+        isSuperAdmin() ||
+        resource.data.userId == request.auth.uid ||
+        isCompanyAdmin(resource.data.companyId)
+      );
       
-      // CREATE:
-      // 1. Super Admins can create anything.
-      // 2. Company Admins can ONLY create roles for their OWN company AND cannot create 'super_admin' roles.
+      // CREATE: Super Admins or Company Admins (for their own company, non-super_admin roles only)
       allow create: if isSuperAdmin() || 
                     (
                       isCompanyAdmin(request.resource.data.companyId) && 
                       request.resource.data.role != 'super_admin'
                     );
 
-      // UPDATE:
-      // Same logic: Company Admins cannot upgrade anyone to 'super_admin'
+      // UPDATE: Same logic - cannot escalate to super_admin
       allow update: if isSuperAdmin() || 
                     (
                       isCompanyAdmin(resource.data.companyId) && 
@@ -123,22 +178,34 @@ service cloud.firestore {
       allow delete: if isSuperAdmin() || isCompanyAdmin(resource.data.companyId);
     }
 
+    // 6. NOTIFICATIONS
     match /notifications/{notificationId} {
-      allow read: if isOwner(resource.data.recipientId);
-      allow write: if isSignedIn(); 
+      allow read: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.recipientId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.recipientId == request.auth.uid;
     }
 
+    // 7. ANALYTICS (Super Admin only)
     match /analytics/{docId} {
       allow read: if isSuperAdmin();
+      allow write: if false; // Write only via backend
     }
     
+    // 8. RECRUITER LINKS (Public read for tracking)
     match /recruiter_links/{code} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isSuperAdmin();
     }
 
+    // --- COLLECTION GROUP QUERIES ---
+    // These allow reading across all subcollections with the same name
+    
     match /{path=**}/applications/{appId} {
-      allow read: if isSuperAdmin() || (isSignedIn() && isCompanyTeam(resource.data.companyId));
+      allow read: if isSuperAdmin() || 
+                   (isSignedIn() && resource.data.applicantId == request.auth.uid) ||
+                   (isSignedIn() && isCompanyTeam(resource.data.companyId));
     }
     
     match /{path=**}/leads/{leadId} {

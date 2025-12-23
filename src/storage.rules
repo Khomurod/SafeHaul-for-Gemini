@@ -12,13 +12,11 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Check if user is Super Admin (Fixed to match Firestore logic)
+    // Check if user is Super Admin
     function isSuperAdmin() {
        return isSignedIn() && (
          request.auth.token.email == 'admin@trucking.com' || 
-         // Check top-level custom claim
          (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin') ||
-         // Check nested custom claim (standard for this app)
          (request.auth.token.keys().hasAny(['roles']) && request.auth.token.roles.keys().hasAny(['globalRole']) && request.auth.token.roles.globalRole == 'super_admin')
       );
     }
@@ -35,53 +33,54 @@ service firebase.storage {
       );
     }
     
+    // Validate file type and size for uploads
+    function isValidFile() {
+      return request.resource.size < 10 * 1024 * 1024 && // Max 10MB
+             request.resource.contentType.matches('application/pdf|image/png|image/jpeg|image/gif|image/webp');
+    }
+    
     // --- RULES ---
 
-    // 1. COMPANY ASSETS (Logos)
+    // 1. COMPANY ASSETS (Logos, branding)
     match /company_assets/{companyId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isCompanyTeam(companyId);
+      allow write: if isCompanyTeam(companyId) && isValidFile();
     }
 
     // 2. MASTER DRIVER PROFILE UPLOADS
     match /drivers/{driverId}/{allPaths=**} {
-      allow read, write: if isOwner(driverId) || isSuperAdmin();
+      allow read: if isOwner(driverId) || isSuperAdmin();
+      allow write: if (isOwner(driverId) || isSuperAdmin()) && isValidFile();
     }
 
-    // 3. COMPANY APPLICATION FILES (Fix for Test & Guest Apply)
+    // 3. COMPANY APPLICATION FILES
     // Path: companies/{companyId}/applications/{applicantId}/...
     match /companies/{companyId}/applications/{applicantId}/{allPaths=**} {
-      // HR Team and Driver can READ their files
+      // Read: HR Team or the applicant who owns the files
       allow read: if isOwner(applicantId) || isCompanyTeam(companyId);
       
-      // PUBLIC WRITE: Restricted Security Fix
-      // Allows guests to upload, BUT enforces file type and size limits to prevent abuse.
+      // Write: Authenticated users with proper validation
       allow write: if (
-        // Option A: Authenticated System/Owner
-        (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId))) ||
+        // Authenticated owner or company team with file validation
+        (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId)) && isValidFile()) ||
         
-        // Option B: Public Guest (Strict Limits)
+        // Public guest uploads (for apply without login) - strict limits
         (
-          request.resource.size < 10 * 1024 * 1024 && // Max 10MB
-          (
-             // Production: Only Allow PDFs and Images
-             request.resource.contentType.matches('application/pdf|image/.*') ||
-             // Test Environment Exception: Allow .txt files for automated tests (SYS_TEST_*)
-             (companyId.matches('SYS_TEST_.*') && request.resource.contentType == 'text/plain')
-          )
+          request.resource.size < 5 * 1024 * 1024 && // Max 5MB for guests
+          request.resource.contentType.matches('application/pdf|image/png|image/jpeg|image/gif')
         )
       );
     }
 
     // 4. GLOBAL LEADS FILES
     match /global_leads/{applicantId}/{allPaths=**} {
-      allow read, write: if isOwner(applicantId) || isSuperAdmin();
+      allow read: if isOwner(applicantId) || isSuperAdmin();
+      allow write: if (isOwner(applicantId) || isSuperAdmin()) && isValidFile();
     }
 
-    // 5. SYSTEM HEALTH DIAGNOSTICS
-    // Allows the System Health tool to read/write test files
+    // 5. SYSTEM HEALTH DIAGNOSTICS (Super Admin only in production)
     match /system_health_tests/{fileName} {
-      allow read, write: if isSignedIn();
+      allow read, write: if isSuperAdmin();
     }
     
     // 6. FALLBACK (Deny everything else)
