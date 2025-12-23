@@ -7,6 +7,7 @@ import { ref, uploadString, deleteObject, getDownloadURL } from 'firebase/storag
 import { httpsCallable } from 'firebase/functions';
 import { db, storage, functions } from '@lib/firebase';
 import { jsPDF } from 'jspdf';
+import { getAuth } from 'firebase/auth';
 
 const STORAGE_KEY = 'safehaul_system_health_state';
 
@@ -31,15 +32,18 @@ const STEPS = [
     { id: 'sim_job_offer', label: '10. Flow: Company Sending Offer' },
     { id: 'sim_offer_receive', label: '11. Flow: Driver Receiving Offer' },
 
+    // NEW: DATA SOURCES (SafeHaul & My Leads)
+    { id: 'sim_safehaul_lead', label: '12. Data: SafeHaul & Personal Leads' },
+
     // LEVEL 3: CRITICAL LOGIC
-    { id: 'sim_pdf_gen', label: '12. Engine: PDF Generation' },
-    { id: 'sim_activity_log', label: '13. Logic: Audit Trail Logging' },
+    { id: 'sim_pdf_gen', label: '13. Engine: PDF Generation' },
+    { id: 'sim_activity_log', label: '14. Logic: Audit Trail Logging' },
     
     // NEW: Visibility & Integrity
-    { id: 'test_visibility', label: '14. Data: Dashboard Visibility Check' },
-    { id: 'test_integrity', label: '15. Data: DB <-> Storage Alignment' },
+    { id: 'test_visibility', label: '15. Data: Dashboard Visibility (All Views)' },
+    { id: 'test_integrity', label: '16. Data: DB <-> Storage Alignment' },
 
-    { id: 'cleanup', label: '16. System Cleanup & Data Purge' }
+    { id: 'cleanup', label: '17. System Cleanup & Data Purge' }
 ];
 
 export function useSystemHealth() {
@@ -118,7 +122,7 @@ export function useSystemHealth() {
                 addLog(`Testing: ${step.label}...`, "info");
 
                 await executeStep(step.id);
-                await wait(1000); // Slight delay for visual pacing
+                await wait(1000); 
             }
 
             if (!abortController.current?.signal.aborted) {
@@ -239,7 +243,7 @@ export function useSystemHealth() {
                 addLog("✅ E-Signature Successfully Captured.", "success");
                 break;
 
-            // --- NEW: USER MANAGEMENT CYCLE ---
+            // --- USER MANAGEMENT CYCLE ---
             case 'test_user_access':
                 const tempEmail = `systest_${Date.now()}@example.com`;
                 const tempPass = "Test1234!";
@@ -266,14 +270,11 @@ export function useSystemHealth() {
                 addLog(".. User assigned to Company A.", "info");
 
                 // 3. Reassign to Company B
-                // First delete old membership (Simulate UI action)
+                // First delete old membership
                 const oldMemId = snap1.docs[0].id;
                 await deleteDoc(doc(db, 'memberships', oldMemId));
 
-                // Add new membership
-                const addMemFn = httpsCallable(functions, 'joinCompanyTeam'); // Or direct DB write if you prefer
-                // We'll simulate direct write since 'joinCompanyTeam' creates new users usually.
-                // Let's use direct DB write to simulate the 'EditUserModal' logic
+                // Add new membership using direct DB write to simulate internal logic
                 await setDoc(doc(db, 'memberships', `TEMP_MEM_${Date.now()}`), {
                     userId: tempUserId,
                     companyId: currentData.companyIdB,
@@ -333,6 +334,36 @@ export function useSystemHealth() {
                 addLog("✅ Driver Received Offer.", "success");
                 break;
 
+            // --- NEW: SAFEHAUL & MY LEADS ---
+            case 'sim_safehaul_lead':
+                // 1. Create a Global Lead (SafeHaul Pool)
+                const globalLeadId = `SH_LEAD_${Date.now()}`;
+                await setDoc(doc(db, 'leads', globalLeadId), {
+                    name: "SafeHaul Test Lead",
+                    status: 'active',
+                    isTestRecord: true,
+                    createdAt: serverTimestamp()
+                });
+
+                // 2. Create a "My Lead" (Assigned to Current User)
+                const currentUser = getAuth().currentUser;
+                let myLeadId = null;
+                if (currentUser) {
+                    myLeadId = `MY_LEAD_${Date.now()}`;
+                    await setDoc(doc(db, 'companies', currentData.companyId, 'leads', myLeadId), {
+                        name: "Personal Assigned Lead",
+                        status: 'new',
+                        assignedTo: currentUser.uid, // This makes it "My Lead"
+                        isTestRecord: true
+                    });
+                } else {
+                    addLog("⚠️ Skipping 'My Leads' creation (No Admin logged in).", "warning");
+                }
+
+                updateData({ globalLeadId, myLeadId });
+                addLog("✅ SafeHaul & Personal Leads Created.", "success");
+                break;
+
             case 'sim_pdf_gen':
                 try {
                     const pdfDoc = new jsPDF();
@@ -353,22 +384,39 @@ export function useSystemHealth() {
                 addLog("✅ Audit/Activity Logging OK.", "success");
                 break;
 
-            // --- NEW: VISIBILITY CHECK ---
+            // --- NEW: COMPREHENSIVE VISIBILITY CHECK ---
             case 'test_visibility':
-                // Check Applications List
+                // 1. Applications List
                 const qApps = query(collection(db, 'companies', currentData.companyId, 'applications'));
                 const snapApps = await getDocs(qApps);
                 const foundApp = snapApps.docs.find(d => d.id === currentData.driverId);
                 if (!foundApp) throw new Error("Dashboard Visibility Error: Application not showing in query.");
 
-                // Check Company Leads (Create one first)
+                // 2. Company Leads (Standard)
                 const leadRef = doc(collection(db, 'companies', currentData.companyId, 'leads'));
-                await setDoc(leadRef, { name: "Test Lead", status: 'new', isTestRecord: true });
+                await setDoc(leadRef, { name: "Standard Company Lead", status: 'new', isTestRecord: true });
                 const qLeads = query(collection(db, 'companies', currentData.companyId, 'leads'));
                 const snapLeads = await getDocs(qLeads);
                 if (snapLeads.empty) throw new Error("Dashboard Visibility Error: Leads not showing in query.");
 
-                addLog("✅ Dashboard Visibility Checked (Apps & Leads appear in queries).", "success");
+                // 3. SafeHaul Leads (Global)
+                if (currentData.globalLeadId) {
+                    const shLeadSnap = await getDoc(doc(db, 'leads', currentData.globalLeadId));
+                    if (!shLeadSnap.exists()) throw new Error("Visibility Error: SafeHaul (Global) lead not retrievable.");
+                }
+
+                // 4. "My Leads" (Assigned)
+                if (currentData.myLeadId) {
+                    const currentUser = getAuth().currentUser;
+                    const qMyLeads = query(
+                        collection(db, 'companies', currentData.companyId, 'leads'),
+                        where("assignedTo", "==", currentUser.uid)
+                    );
+                    const snapMyLeads = await getDocs(qMyLeads);
+                    if (snapMyLeads.empty) throw new Error("Visibility Error: 'My Leads' query returned empty.");
+                }
+
+                addLog("✅ Dashboard Visibility Verified (Apps, Company Leads, SafeHaul, My Leads).", "success");
                 break;
 
             // --- NEW: BACKEND INTEGRITY ---
@@ -383,41 +431,4 @@ export function useSystemHealth() {
                 // 2. Check if file actually exists in Storage
                 try {
                     const fileRef = ref(storage, storedPath);
-                    await getDownloadURL(fileRef); // Will throw if missing
-                } catch (e) {
-                    throw new Error(`Integrity Fail: DB points to ${storedPath}, but file is missing in Storage.`);
-                }
-                addLog("✅ Backend Integrity Verified (DB links match Storage files).", "success");
-                break;
-
-            case 'cleanup':
-                addLog("🧹 Beginning Deep Cleanup...", "warning");
-                
-                // 1. Delete Firestore Data
-                if (currentData.companyId) {
-                    // Delete Application
-                    await deleteDoc(doc(db, 'companies', currentData.companyId, 'applications', currentData.driverId)).catch(e => console.warn(e));
-                    if (currentData.linkedAppId) {
-                        await deleteDoc(doc(db, 'companies', currentData.companyId, 'applications', currentData.linkedAppId)).catch(e => console.warn(e));
-                    }
-                    // Delete Company
-                    await deleteDoc(doc(db, 'companies', currentData.companyId)).catch(e => console.warn(e));
-                }
-                if (currentData.companyIdB) await deleteDoc(doc(db, 'companies', currentData.companyIdB)).catch(e => console.warn(e));
-                if (currentData.driverId) await deleteDoc(doc(db, 'drivers', currentData.driverId)).catch(e => console.warn(e));
-
-                // 2. Delete Auth User (Using Backend Function)
-                if (currentData.tempUserId) {
-                    try {
-                        addLog(".. Deleting test user account...", "info");
-                        const deleteFn = httpsCallable(functions, 'deletePortalUser');
-                        await deleteFn({ userId: currentData.tempUserId }); 
-                        await deleteDoc(doc(db, 'users', currentData.tempUserId)).catch(console.warn);
-                    } catch (e) {
-                        console.warn("Cleanup: Failed to delete auth user", e);
-                    }
-                }
-
-                // 3. Delete Memberships
-                // We query for any remaining memberships for this test user
-       if (currentData.tempUserId)
+                    a
