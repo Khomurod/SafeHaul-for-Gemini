@@ -24,17 +24,11 @@ function shuffleArray(array) {
     return array;
 }
 
-function chunkArray(array, size) {
-    const result = [];
-    for (let i = 0; i < array.length; i += size) {
-        result.push(array.slice(i, i + size));
-    }
-    return result;
-}
-
 // --- 1. LEAD DISTRIBUTION ORCHESTRATOR ---
 async function runLeadDistribution(forceRotate = false) {
     console.log(`Starting Lead Distribution Engine (Force: ${forceRotate})...`);
+    
+    // 1. Fetch Companies
     const companiesSnap = await db.collection("companies").get();
     const allCompanyDocs = companiesSnap.docs;
     const allCompanyIds = allCompanyDocs.map(doc => doc.id);
@@ -45,13 +39,13 @@ async function runLeadDistribution(forceRotate = false) {
 
     const assignedLeadIds = new Set(); 
 
-    const companyChunks = chunkArray(allCompanyDocs, 5);
-    for (const chunk of companyChunks) {
-        const results = await Promise.all(chunk.map(async (companyDoc) => {
+    // 2. Process Sequentially
+    for (const companyDoc of allCompanyDocs) {
+        try {
             const companyId = companyDoc.id;
             const companyData = companyDoc.data();
             const plan = companyData.planType || 'free';
-            const LIMIT = plan === 'paid' ? 200 : 50;
+            const LIMIT = plan === 'paid' ? 200 : 50; 
 
             // A. CLEANUP
             const activeCount = await processCompanyCleanup(companyId, now, forceRotate);
@@ -73,22 +67,26 @@ async function runLeadDistribution(forceRotate = false) {
             } else {
                 msg = `${companyData.companyName}: Full (${activeCount}/${LIMIT})`;
             }
-            return msg;
-        }));
+            
+            console.log(msg);
+            distributionDetails.push(msg);
 
-        distributionDetails.push(...results);
+        } catch (err) {
+            console.error(`Error processing company ${companyDoc.id}:`, err);
+            distributionDetails.push(`Error ${companyDoc.id}: ${err.message}`);
+        }
     }
 
     return { success: true, message: "Distribution Complete", details: distributionDetails };
 }
 
-// --- 2. CLEANUP LOGIC (FIXED) ---
+// --- 2. CLEANUP LOGIC ---
 async function processCompanyCleanup(companyId, now, forceRotate) {
     const companyLeadsRef = db.collection("companies").doc(companyId).collection("leads");
     const currentLeadsSnap = await companyLeadsRef.where("isPlatformLead", "==", true).get();
 
     let batch = db.batch();
-    let batchSize = 0; // Tracks ACTUAL writes, not just loops
+    let batchSize = 0; 
     let activeCount = 0;
 
     for (const docSnap of currentLeadsSnap.docs) {
@@ -133,7 +131,6 @@ async function processCompanyCleanup(companyId, now, forceRotate) {
             activeCount++;
         }
 
-        // Only commit if we have enough operations
         if (batchSize >= 400) { 
             await batch.commit(); 
             batch = db.batch(); 
@@ -141,14 +138,8 @@ async function processCompanyCleanup(companyId, now, forceRotate) {
         }
     }
 
-    // FIXED: Only commit if there is something to commit
     if (batchSize > 0) {
         await batch.commit();
-    }
-
-    // Tiny delay to allow indexes to settle
-    if (batchSize > 0) {
-        await new Promise(resolve => setTimeout(resolve, 500));
     }
 
     return activeCount;
@@ -158,32 +149,34 @@ async function processCompanyCleanup(companyId, now, forceRotate) {
 async function processCompanyReplenishment(companyId, needed, nowTs, assignedLeadIds, allCompanyIds) {
     const companyLeadsRef = db.collection("companies").doc(companyId).collection("leads");
 
-    // Query 1: Leads that have expired locks (past timestamp)
+    const fetchLimit = (needed * 5) + 10; 
+
+    // Query 1: Unlocked Leads
     const poolQuery = db.collection("leads")
         .where("unavailableUntil", "<=", nowTs)
         .orderBy("unavailableUntil", "asc")
-        .limit((needed * 5) + assignedLeadIds.size);
+        .limit(fetchLimit);
 
     let leadDocs = [];
     try {
         const poolSnap = await poolQuery.get();
         leadDocs = poolSnap.docs;
 
-        // Query 2: Leads that are explicitly unlocked (null)
-        // This is needed because "<=" queries usually ignore null values
-        if (leadDocs.length < needed) {
-             const nullQuery = db.collection("leads").where("unavailableUntil", "==", null).limit(needed * 2);
+        // Query 2: Leads that have never been locked (null)
+        if (leadDocs.length < fetchLimit) {
+             const nullQuery = db.collection("leads")
+                .where("unavailableUntil", "==", null)
+                .limit(fetchLimit - leadDocs.length);
+             
              const nullSnap = await nullQuery.get();
-
              const existingIds = new Set(leadDocs.map(d => d.id));
              nullSnap.docs.forEach(d => {
                  if(!existingIds.has(d.id)) leadDocs.push(d);
              });
         }
     } catch (e) {
-        console.warn("Pool query warning (Index likely missing):", e);
-        // Fallback: Just get latest leads
-        const backupSnap = await db.collection("leads").orderBy("createdAt", "desc").limit(needed * 5).get();
+        console.warn("Pool query fallback:", e);
+        const backupSnap = await db.collection("leads").orderBy("createdAt", "desc").limit(fetchLimit).get();
         leadDocs = backupSnap.docs;
     }
 
@@ -201,7 +194,6 @@ async function processCompanyReplenishment(companyId, needed, nowTs, assignedLea
         if (existsCheck.exists) continue;
 
         const rawData = leadDoc.data();
-
         let visited = rawData.visitedCompanyIds || [];
         if (visited.includes(companyId)) continue;
 
@@ -238,7 +230,7 @@ async function processCompanyReplenishment(companyId, needed, nowTs, assignedLea
         db.collection("leads").doc(leadDoc.id).update({ 
             unavailableUntil: admin.firestore.Timestamp.fromDate(tomorrow),
             lastAssignedTo: companyId,
-            visitedCompanyIds: [...visited, companyId]
+            visitedCompanyIds: [...visited, companyId] 
         });
         batchSize++;
 
@@ -258,10 +250,61 @@ async function processCompanyReplenishment(companyId, needed, nowTs, assignedLea
     return addedCount;
 }
 
-// --- 4. OUTCOME HANDLER ---
+// --- 4. DATA MIGRATION (DRIVERS -> LEADS) ---
+async function populateLeadsFromDrivers() {
+    console.log("Starting Driver -> Lead Migration...");
+    const driversSnap = await db.collection("drivers").get();
+    
+    let batch = db.batch();
+    let count = 0;
+    let added = 0;
+
+    for (const doc of driversSnap.docs) {
+        const d = doc.data();
+        
+        // Check if lead already exists
+        const leadRef = db.collection("leads").doc(doc.id);
+        const leadSnap = await leadRef.get();
+
+        if (!leadSnap.exists) {
+             const leadData = {
+                 firstName: d.personalInfo?.firstName || 'Unknown',
+                 lastName: d.personalInfo?.lastName || 'Driver',
+                 email: d.personalInfo?.email || '',
+                 phone: d.personalInfo?.phone || '',
+                 normalizedPhone: d.personalInfo?.normalizedPhone || '',
+                 driverType: d.driverProfile?.type || 'Unspecified',
+                 experience: d.qualifications?.experienceYears || 'N/A',
+                 city: d.personalInfo?.city || '',
+                 state: d.personalInfo?.state || '',
+                 createdAt: d.createdAt || admin.firestore.Timestamp.now(),
+                 
+                 // Platform Fields
+                 status: 'active',
+                 unavailableUntil: null,
+                 visitedCompanyIds: []
+             };
+             
+             batch.set(leadRef, leadData);
+             added++;
+             count++;
+        }
+
+        if (count >= 400) { 
+            await batch.commit(); 
+            batch = db.batch(); 
+            count = 0; 
+        }
+    }
+
+    if (count > 0) await batch.commit();
+    
+    return { success: true, message: `Migration Complete. Added ${added} new leads to the pool.` };
+}
+
+// --- 5. OUTCOME HANDLER ---
 async function processLeadOutcome(leadId, companyId, outcome) {
     if (!leadId) return { error: "No Lead ID" };
-
     const leadRef = db.collection("leads").doc(leadId);
     const now = new Date();
     let lockUntil = new Date();
@@ -283,11 +326,10 @@ async function processLeadOutcome(leadId, companyId, outcome) {
         lastOutcomeBy: companyId,
         poolStatus: reason
     });
-
     return { success: true, mode: reason, lockedUntil: lockUntil };
 }
 
-// --- 5. DRIVER INTEREST ---
+// --- 6. DRIVER INTEREST ---
 async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
     if (!leadId || !companyIdOrSlug) return { success: false, error: "Missing data" };
 
@@ -304,9 +346,7 @@ async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
     const leadRef = db.collection("leads").doc(leadId);
     const leadSnap = await leadRef.get();
 
-    if (!leadSnap.exists) {
-        return { success: false, error: "Lead not found in global pool." };
-    }
+    if (!leadSnap.exists) return { success: false, error: "Lead not found in global pool." };
 
     const leadData = leadSnap.data();
     const nowTs = admin.firestore.Timestamp.now();
@@ -316,7 +356,7 @@ async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
         try {
             const userSnap = await db.collection("users").doc(recruiterId).get();
             if (userSnap.exists) recruiterName = userSnap.data().name || recruiterName;
-        } catch(e) { console.warn("Could not fetch recruiter name"); }
+        } catch(e) {}
     }
 
     const appRef = db.collection("companies").doc(companyId).collection("applications").doc(leadId);
@@ -341,7 +381,9 @@ async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
 
     const batch = db.batch();
     batch.set(appRef, appData, { merge: true });
-    batch.delete(oldLeadRef);
+    
+    const oldCheck = await oldLeadRef.get();
+    if (oldCheck.exists) batch.delete(oldLeadRef);
 
     batch.update(leadRef, {
         unavailableUntil: lockTs,
@@ -350,11 +392,10 @@ async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
     });
 
     await batch.commit();
-
     return { success: true, message: "Application created and assigned." };
 }
 
-// --- 6. ANALYTICS ---
+// --- 7. ANALYTICS ---
 async function generateDailyAnalytics() {
     const todayStr = new Date().toISOString().split('T')[0];
     const analyticsRef = db.collection("analytics").doc(todayStr);
@@ -366,9 +407,7 @@ async function generateDailyAnalytics() {
     todayStart.setHours(0,0,0,0);
     const todayTs = admin.firestore.Timestamp.fromDate(todayStart);
 
-    const activitiesSnap = await db.collectionGroup("activities")
-        .where("timestamp", ">=", todayTs)
-        .get();
+    const activitiesSnap = await db.collectionGroup("activities").where("timestamp", ">=", todayTs).get();
 
     let calls = 0;
     const companyActivity = {};
@@ -376,7 +415,6 @@ async function generateDailyAnalytics() {
     activitiesSnap.forEach(doc => {
         const a = doc.data();
         if (a.type === 'call') calls++;
-
         if (a.companyId) {
             if (!companyActivity[a.companyId]) companyActivity[a.companyId] = { calls: 0, actions: 0 };
             if (a.type === 'call') companyActivity[a.companyId].calls++;
@@ -427,7 +465,7 @@ async function runCleanup() {
     const leadsRef = db.collection("leads");
     const snapshot = await leadsRef.get();
     let batch = db.batch();
-    let batchSize = 0; // Fix here as well
+    let batchSize = 0; 
     let count = 0;
     for (const doc of snapshot.docs) {
         const data = doc.data();
@@ -442,11 +480,9 @@ async function runCleanup() {
     return { success: true, deleted: count };
 }
 
-async function runMigration() { return {success:true}; }
-
 module.exports = { 
     runLeadDistribution, 
-    runMigration, 
+    populateLeadsFromDrivers, // <--- EXPORTED NEW FUNCTION
     runCleanup,
     processLeadOutcome, 
     confirmDriverInterest,

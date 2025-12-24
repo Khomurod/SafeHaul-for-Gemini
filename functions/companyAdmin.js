@@ -1,5 +1,6 @@
+// functions/companyAdmin.js
+
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
 
 // --- HELPER: Lazy Database Connection ---
 let dbInstance = null;
@@ -43,111 +44,34 @@ async function deleteQueryBatch(db, query, resolve) {
   process.nextTick(() => deleteQueryBatch(db, query, resolve));
 }
 
-// --- FEATURE 1: GET COMPANY PROFILE (CORS ENABLED) ---
+// --- FEATURE 1: GET COMPANY PROFILE ---
 exports.getCompanyProfile = onCall({ 
-    cors: true, // <--- THIS IS THE CRITICAL FIX
+    cors: true, 
     maxInstances: 10 
 }, async (request) => {
     const { companyId } = request.data;
-    
-    if (!companyId) {
-        throw new HttpsError('invalid-argument', 'The function must be called with a "companyId" argument.');
-    }
+    if (!companyId) throw new HttpsError('invalid-argument', 'Missing companyId.');
 
     const { db } = getServices();
-
     try {
         const docRef = db.collection("companies").doc(companyId);
         const docSnap = await docRef.get();
-
-        if (docSnap.exists) {
-            return docSnap.data();
-        } else {
-            throw new HttpsError('not-found', 'No company profile found for this ID.');
-        }
+        if (docSnap.exists) return docSnap.data();
+        throw new HttpsError('not-found', 'No company profile found.');
     } catch (error) {
         console.error("Error fetching company profile:", error);
-        throw new HttpsError('internal', 'Unable to fetch company profile details.');
+        throw new HttpsError('internal', 'Unable to fetch company profile.');
     }
 });
 
-// --- FEATURE 2: DAILY LEAD DISTRIBUTION (SCHEDULED) ---
-exports.runLeadDistribution = onSchedule({
-    schedule: "every 24 hours",
-    region: "us-central1",
-    timeoutSeconds: 540,
-    memory: '512MiB'
-}, async (event) => {
-    console.log("--- STARTING DAILY LEAD DISTRIBUTION ---");
-    const { db, admin } = getServices(); 
-
-    try {
-        const companiesSnap = await db.collection('companies').where('dailyQuota', '>', 0).get();
-        if (companiesSnap.empty) return;
-
-        const leadsSnap = await db.collection('leads').where('status', '==', 'active').get();
-        if (leadsSnap.empty) return;
-
-        let allLeads = leadsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), ref: doc.ref }));
-        const BATCH_LIMIT = 400;
-
-        for (const companyDoc of companiesSnap.docs) {
-            const companyId = companyDoc.id;
-            const companyData = companyDoc.data();
-            const quota = parseInt(companyData.dailyQuota) || 0;
-
-            await deleteCollection(db, `companies/${companyId}/leads`, BATCH_LIMIT);
-
-            let scoredLeads = allLeads.map(lead => {
-                const history = lead.distributionHistory || {};
-                const lastSeenTimestamp = history[companyId] ? history[companyId].toDate().getTime() : 0;
-                return { ...lead, _sortLastSeen: lastSeenTimestamp, _sortRandom: Math.random() };
-            });
-
-            scoredLeads.sort((a, b) => {
-                if (a._sortLastSeen !== b._sortLastSeen) return a._sortLastSeen - b._sortLastSeen;
-                return a._sortRandom - b._sortRandom;
-            });
-
-            const selectedLeads = scoredLeads.slice(0, quota);
-            let batch = db.batch();
-            let opCount = 0;
-            const timestamp = admin.firestore.Timestamp.now();
-
-            for (const lead of selectedLeads) {
-                const companyLeadRef = db.collection('companies').doc(companyId).collection('leads').doc(lead.id);
-                const leadForCompany = {
-                    ...lead, distributedAt: timestamp, isPlatformLead: true,
-                    _sortLastSeen: admin.firestore.FieldValue.delete(),
-                    _sortRandom: admin.firestore.FieldValue.delete()
-                };
-                batch.set(companyLeadRef, leadForCompany);
-                opCount++;
-                batch.update(lead.ref, { [`distributionHistory.${companyId}`]: timestamp });
-                opCount++;
-                if (opCount >= BATCH_LIMIT) { await batch.commit(); batch = db.batch(); opCount = 0; }
-            }
-            if (opCount > 0) await batch.commit();
-        }
-    } catch (error) {
-        console.error("Distribution Failed:", error);
-    }
-});
-
-// --- FEATURE 3: DELETE COMPANY (Admin Only) ---
+// --- FEATURE 2: DELETE COMPANY (Admin Only) ---
 exports.deleteCompany = onCall({ cors: true }, async (request) => {
-    // Basic guard: Check if user is authenticated
-    if (!request.auth) {
-        throw new HttpsError('unauthenticated', 'User must be logged in.');
-    }
+    if (!request.auth) throw new HttpsError('unauthenticated', 'User must be logged in.');
     
-    // Check for super admin status
     const roles = request.auth.token.roles || {};
     const isSuperAdmin = roles.globalRole === "super_admin";
     
-    if (!isSuperAdmin) {
-        throw new HttpsError('permission-denied', 'Only Super Admins can delete companies.');
-    }
+    if (!isSuperAdmin) throw new HttpsError('permission-denied', 'Only Super Admins can delete companies.');
 
     const { companyId } = request.data;
     if (!companyId) throw new HttpsError('invalid-argument', 'Missing companyId.');
@@ -155,14 +79,10 @@ exports.deleteCompany = onCall({ cors: true }, async (request) => {
     const { db } = getServices();
 
     try {
-        // 1. Delete Subcollections (Applications, Leads) - Limit to 500 to prevent timeout
         await deleteCollection(db, `companies/${companyId}/applications`, 500);
         await deleteCollection(db, `companies/${companyId}/leads`, 500);
-
-        // 2. Delete Main Document
         await db.collection('companies').doc(companyId).delete();
 
-        // 3. Remove Memberships linked to this company
         const memSnap = await db.collection('memberships').where('companyId', '==', companyId).get();
         const batch = db.batch();
         memSnap.forEach(doc => batch.delete(doc.ref));
@@ -175,7 +95,7 @@ exports.deleteCompany = onCall({ cors: true }, async (request) => {
     }
 });
 
-// --- FEATURE 4: MOVE APPLICATION (Company Admin) ---
+// --- FEATURE 3: MOVE APPLICATION ---
 exports.moveApplication = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Login required.');
     
@@ -192,37 +112,76 @@ exports.moveApplication = onCall({ cors: true }, async (request) => {
     }
 });
 
-// --- FEATURE 5: SEND AUTOMATED EMAIL (Stub) ---
+// --- FEATURE 4: SEND AUTOMATED EMAIL ---
 exports.sendAutomatedEmail = onCall({ cors: true }, async (request) => {
-    // This is a stub. In production, you would connect to SendGrid/Mailgun here.
     return { success: true, message: "Email simulation successful." };
 });
 
-// --- FEATURE 6: GET PERFORMANCE HISTORY (Stub) ---
+// --- FEATURE 5: GET PERFORMANCE HISTORY (Real) ---
 exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
-    return { data: [
-        { date: '2023-10-01', applications: 12, hires: 2 },
-        { date: '2023-10-02', applications: 15, hires: 3 },
-        { date: '2023-10-03', applications: 8, hires: 1 },
-    ]};
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Login required.');
+    
+    const { companyId, startDate, endDate } = request.data;
+    if (!companyId) throw new HttpsError('invalid-argument', 'Missing companyId.');
+
+    const { db } = getServices();
+
+    try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        // Uses collectionGroup query - Requires Index in Firestore
+        const activitiesQuery = db.collectionGroup('activities')
+            .where('companyId', '==', companyId)
+            .where('timestamp', '>=', start)
+            .where('timestamp', '<=', end);
+
+        const snapshot = await activitiesQuery.get();
+        const statsByUser = {};
+
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const userId = data.performedBy || 'unknown';
+            const userName = data.performedByName || 'Unknown Agent';
+            const outcome = data.outcome;
+
+            if (!statsByUser[userId]) {
+                statsByUser[userId] = {
+                    id: userId, name: userName, dials: 0, connected: 0, 
+                    callback: 0, notInt: 0, notQual: 0, vm: 0
+                };
+            }
+
+            statsByUser[userId].dials++;
+
+            switch (outcome) {
+                case 'interested': statsByUser[userId].connected++; break;
+                case 'callback': statsByUser[userId].callback++; break;
+                case 'not_interested':
+                case 'hired_elsewhere': statsByUser[userId].notInt++; break;
+                case 'not_qualified':
+                case 'wrong_number': statsByUser[userId].notQual++; break;
+                case 'voicemail':
+                case 'no_answer': statsByUser[userId].vm++; break;
+                default: if (data.isContact) statsByUser[userId].connected++; break;
+            }
+        });
+
+        return { success: true, data: Object.values(statsByUser) };
+
+    } catch (error) {
+        console.error("Performance Report Error:", error);
+        throw new HttpsError('internal', error.message);
+    }
 });
 
-// --- FEATURE 7: MANUAL MIGRATION TOOL (CALLABLE) ---
+// --- FEATURE 6: MANUAL MIGRATION TOOL ---
 const migrationLogic = onCall({
-    cors: true,             
-    region: "us-central1",  
-    maxInstances: 10
+    cors: true, region: "us-central1", maxInstances: 10
 }, async (request) => {
-
-    // 1. PING MODE (No DB access, just network check)
-    if (request.data?.mode === 'ping') {
-        return { success: true, message: "Pong! Network OK." };
-    }
-
-    // 2. MIGRATION LOGIC
+    if (request.data?.mode === 'ping') return { success: true, message: "Pong!" };
     try {
-        const { db } = getServices(); // Connect NOW
-
+        const { db } = getServices();
         const companiesRef = db.collection('companies');
         const snapshot = await companiesRef.get();
         let batch = db.batch();
@@ -239,12 +198,9 @@ const migrationLogic = onCall({
             if (count >= 400) { await batch.commit(); batch = db.batch(); count = 0; }
         }
         if (count > 0) await batch.commit();
-
-        return { success: true, message: `Migration complete. Updated ${totalUpdated} companies.` };
-
+        return { success: true, message: `Updated ${totalUpdated} companies.` };
     } catch (error) {
-        console.error("Migration Error:", error);
-        return { success: false, error: error.message || "Unknown Internal Error" };
+        return { success: false, error: error.message };
     }
 });
 

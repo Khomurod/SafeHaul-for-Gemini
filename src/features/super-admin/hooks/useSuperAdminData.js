@@ -4,8 +4,8 @@ import {
     collection, 
     getDocs, 
     collectionGroup, 
-    query, 
-    orderBy 
+    query 
+    // orderBy <-- REMOVED to prevent index errors
 } from 'firebase/firestore';
 import { loadAllMemberships } from '@features/auth';
 import { useToast } from '@shared/components/feedback/ToastProvider';
@@ -48,7 +48,7 @@ export function useSuperAdminData() {
                 const compMap = new Map();
                 compMap.set('general-leads', 'SafeHaul Pool (Unassigned)');
 
-                // FIX: Removed orderBy('createdAt') to prevent hiding docs missing that field
+                // No orderBy needed, we sort in memory below
                 const compQuery = query(collection(db, "companies"));
                 const companiesSnap = await getDocs(compQuery);
 
@@ -58,7 +58,7 @@ export function useSuperAdminData() {
                     compMap.set(doc.id, data.companyName);
                 });
 
-                // Sort in memory (Safe)
+                // Sort in memory
                 companies.sort((a, b) => {
                     const tA = a.createdAt?.seconds || 0;
                     const tB = b.createdAt?.seconds || 0;
@@ -76,7 +76,6 @@ export function useSuperAdminData() {
         // --- 2. Fetch Users & Memberships ---
         const fetchUsers = async () => {
             try {
-                // FIX: Removed orderBy to ensure we get all users
                 const userQuery = query(collection(db, "users"));
 
                 const [usersSnap, membershipsSnap] = await Promise.all([
@@ -117,19 +116,12 @@ export function useSuperAdminData() {
         // --- 3. Fetch Unified DB (Apps + Leads + Bulk Drivers) ---
         const fetchApps = async () => {
             try {
-                // We keep orderBy here because 'submittedAt' is usually consistent on apps,
-                // but if this fails, we can remove it too.
-                const appQuery = query(
-                    collectionGroup(db, 'applications'), 
-                    orderBy('createdAt', 'desc')
-                );
-
-                const leadsQuery = query(
-                    collectionGroup(db, 'leads'), 
-                    orderBy('createdAt', 'desc')
-                );
-
-                // Removed orderBy for drivers to be safe
+                // FIX: Removed 'orderBy' from these queries. 
+                // Firestore requires special indexes for CollectionGroup + orderBy.
+                // Since we fetch all and sort in memory anyway, removing it is safer/easier.
+                
+                const appQuery = query(collectionGroup(db, 'applications'));
+                const leadsQuery = query(collectionGroup(db, 'leads'));
                 const driversQuery = query(collection(db, 'drivers'));
 
                 const [appSnap, leadSnap, bulkSnap] = await Promise.all([
@@ -141,6 +133,7 @@ export function useSuperAdminData() {
                 // --- Process Applications ---
                 const brandedApps = appSnap.docs.map((doc) => {
                     const data = doc.data();
+                    // Identify parent company from path
                     const parent = doc.ref.parent.parent;
                     const companyId = parent ? parent.id : data.companyId;
                     return {
@@ -195,6 +188,7 @@ export function useSuperAdminData() {
 
                 const combined = [...brandedApps, ...allLeads, ...bulkLeads];
 
+                // Sort combined list in memory
                 combined.sort((a, b) => {
                     const dateA = a.createdAt?.seconds || a.submittedAt?.seconds || 0;
                     const dateB = b.createdAt?.seconds || b.submittedAt?.seconds || 0;
