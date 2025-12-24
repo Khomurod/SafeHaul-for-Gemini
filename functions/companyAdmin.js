@@ -117,7 +117,7 @@ exports.sendAutomatedEmail = onCall({ cors: true }, async (request) => {
     return { success: true, message: "Email simulation successful." };
 });
 
-// --- FEATURE 5: GET PERFORMANCE HISTORY (Real) ---
+// --- FEATURE 5: GET PERFORMANCE HISTORY (Recruiter Breakdown) ---
 exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Login required.');
     
@@ -130,21 +130,33 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
         const start = new Date(startDate);
         const end = new Date(endDate);
 
-        // Uses collectionGroup query - Requires Index in Firestore
         const activitiesQuery = db.collectionGroup('activities')
             .where('companyId', '==', companyId)
             .where('timestamp', '>=', start)
             .where('timestamp', '<=', end);
 
         const snapshot = await activitiesQuery.get();
-        const statsByUser = {};
+        
+        const statsByUser = {}; // For Leaderboard
+        const statsByDate = {}; // For Trend Graph
+        const recruitersMap = new Map(); // Track who is active for line generation
 
         snapshot.forEach(doc => {
             const data = doc.data();
             const userId = data.performedBy || 'unknown';
-            const userName = data.performedByName || 'Unknown Agent';
+            const userName = data.performedByName || 'Unknown Recruiter';
             const outcome = data.outcome;
+            
+            // Track Recruiter
+            if (!recruitersMap.has(userId)) {
+                recruitersMap.set(userId, userName);
+            }
 
+            // Normalize Date key (YYYY-MM-DD)
+            const timestamp = data.timestamp ? data.timestamp.toDate() : new Date();
+            const dateKey = timestamp.toISOString().split('T')[0];
+
+            // 1. Leaderboard Init
             if (!statsByUser[userId]) {
                 statsByUser[userId] = {
                     id: userId, name: userName, dials: 0, connected: 0, 
@@ -152,22 +164,67 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
                 };
             }
 
-            statsByUser[userId].dials++;
+            // 2. Trend Init
+            if (!statsByDate[dateKey]) {
+                statsByDate[dateKey] = { date: dateKey };
+            }
+            
+            // Dynamic Keys for this User on this Date
+            const dialsKey = `${userId}_dials`;
+            const connKey = `${userId}_connected`;
+            
+            if (!statsByDate[dateKey][dialsKey]) statsByDate[dateKey][dialsKey] = 0;
+            if (!statsByDate[dateKey][connKey]) statsByDate[dateKey][connKey] = 0;
 
+            // 3. Increment Dials
+            statsByUser[userId].dials++;
+            statsByDate[dateKey][dialsKey]++;
+
+            // 4. Outcome Logic
+            let isConnected = false;
             switch (outcome) {
-                case 'interested': statsByUser[userId].connected++; break;
-                case 'callback': statsByUser[userId].callback++; break;
+                case 'interested': 
+                case 'callback': 
+                    isConnected = true; 
+                    statsByUser[userId].callback += (outcome === 'callback' ? 1 : 0);
+                    break;
                 case 'not_interested':
-                case 'hired_elsewhere': statsByUser[userId].notInt++; break;
+                case 'hired_elsewhere': 
+                    statsByUser[userId].notInt++; 
+                    break;
                 case 'not_qualified':
-                case 'wrong_number': statsByUser[userId].notQual++; break;
+                case 'wrong_number': 
+                    statsByUser[userId].notQual++; 
+                    break;
                 case 'voicemail':
-                case 'no_answer': statsByUser[userId].vm++; break;
-                default: if (data.isContact) statsByUser[userId].connected++; break;
+                case 'no_answer': 
+                    statsByUser[userId].vm++; 
+                    break;
+                default: 
+                    if (data.isContact) isConnected = true;
+                    break;
+            }
+
+            if (isConnected) {
+                statsByUser[userId].connected++;
+                statsByDate[dateKey][connKey]++;
             }
         });
 
-        return { success: true, data: Object.values(statsByUser) };
+        // Convert Map to Array for Frontend
+        const recruitersList = Array.from(recruitersMap.entries()).map(([id, name]) => ({ id, name }));
+
+        // Sort trends by date
+        const trendData = Object.values(statsByDate).sort((a, b) => 
+            new Date(a.date) - new Date(b.date)
+        );
+
+        return { 
+            success: true, 
+            data: Object.values(statsByUser), 
+            trends: trendData,
+            recruiters: recruitersList // Send list of active recruiters for the graph lines
+        };
 
     } catch (error) {
         console.error("Performance Report Error:", error);
