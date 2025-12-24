@@ -117,7 +117,7 @@ exports.sendAutomatedEmail = onCall({ cors: true }, async (request) => {
     return { success: true, message: "Email simulation successful." };
 });
 
-// --- FEATURE 5: GET PERFORMANCE HISTORY (Recruiter Breakdown) ---
+// --- FEATURE 5: GET PERFORMANCE HISTORY (Simplified) ---
 exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Login required.');
     
@@ -137,9 +137,7 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
 
         const snapshot = await activitiesQuery.get();
         
-        const statsByUser = {}; // For Leaderboard
-        const statsByDate = {}; // For Trend Graph
-        const recruitersMap = new Map(); // Track who is active for line generation
+        const statsByUser = {}; 
 
         snapshot.forEach(doc => {
             const data = doc.data();
@@ -147,15 +145,6 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
             const userName = data.performedByName || 'Unknown Recruiter';
             const outcome = data.outcome;
             
-            // Track Recruiter
-            if (!recruitersMap.has(userId)) {
-                recruitersMap.set(userId, userName);
-            }
-
-            // Normalize Date key (YYYY-MM-DD)
-            const timestamp = data.timestamp ? data.timestamp.toDate() : new Date();
-            const dateKey = timestamp.toISOString().split('T')[0];
-
             // 1. Leaderboard Init
             if (!statsByUser[userId]) {
                 statsByUser[userId] = {
@@ -164,29 +153,16 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
                 };
             }
 
-            // 2. Trend Init
-            if (!statsByDate[dateKey]) {
-                statsByDate[dateKey] = { date: dateKey };
-            }
-            
-            // Dynamic Keys for this User on this Date
-            const dialsKey = `${userId}_dials`;
-            const connKey = `${userId}_connected`;
-            
-            if (!statsByDate[dateKey][dialsKey]) statsByDate[dateKey][dialsKey] = 0;
-            if (!statsByDate[dateKey][connKey]) statsByDate[dateKey][connKey] = 0;
-
-            // 3. Increment Dials
+            // 2. Increment Dials
             statsByUser[userId].dials++;
-            statsByDate[dateKey][dialsKey]++;
 
-            // 4. Outcome Logic
-            let isConnected = false;
+            // 3. Outcome Logic
             switch (outcome) {
                 case 'interested': 
                 case 'callback': 
-                    isConnected = true; 
                     statsByUser[userId].callback += (outcome === 'callback' ? 1 : 0);
+                    // Treat as connected
+                    statsByUser[userId].connected++;
                     break;
                 case 'not_interested':
                 case 'hired_elsewhere': 
@@ -201,29 +177,14 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
                     statsByUser[userId].vm++; 
                     break;
                 default: 
-                    if (data.isContact) isConnected = true;
+                    if (data.isContact) statsByUser[userId].connected++;
                     break;
-            }
-
-            if (isConnected) {
-                statsByUser[userId].connected++;
-                statsByDate[dateKey][connKey]++;
             }
         });
 
-        // Convert Map to Array for Frontend
-        const recruitersList = Array.from(recruitersMap.entries()).map(([id, name]) => ({ id, name }));
-
-        // Sort trends by date
-        const trendData = Object.values(statsByDate).sort((a, b) => 
-            new Date(a.date) - new Date(b.date)
-        );
-
         return { 
             success: true, 
-            data: Object.values(statsByUser), 
-            trends: trendData,
-            recruiters: recruitersList // Send list of active recruiters for the graph lines
+            data: Object.values(statsByUser) // Just the list, no trends
         };
 
     } catch (error) {
