@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
-import EnvelopeCreator from '@features/signing/components/EnvelopeCreator';
+// FIX: Corrected import path (removed '/components')
+import EnvelopeCreator from '@features/signing/EnvelopeCreator'; 
 import GlobalLoadingState from '@shared/components/feedback/GlobalLoadingState';
 
 export default function CreateEnvelopePage() {
@@ -18,8 +19,6 @@ export default function CreateEnvelopePage() {
   }
 
   // 3. Render the Envelope Creator
-  // We pass the companyId from our global context so the creator knows where to save files.
-  // We pass onClose to navigate back to the dashboard when the user clicks Cancel or Finish.
   return (
     <div className="h-screen w-full bg-white">
         <EnvelopeCreator 

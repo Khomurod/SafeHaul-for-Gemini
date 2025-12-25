@@ -5,7 +5,7 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-// Lazy load pdf-lib to prevent cold-start crashes if installation failed
+// Lazy load pdf-lib to prevent cold-start crashes
 let PDFDocument, StandardFonts, rgb;
 try {
     const pdfLib = require('pdf-lib');
@@ -16,7 +16,6 @@ try {
     console.warn("WARNING: pdf-lib dependency is missing. Sealing will fail.");
 }
 
-// Ensure Admin is initialized
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -35,13 +34,9 @@ exports.sealDocument = functions.firestore
       return null;
     }
 
-    // 2. Dependency Check
     if (!PDFDocument) {
         console.error("Critical Error: pdf-lib not installed.");
-        await change.after.ref.update({ 
-            status: 'error_system', 
-            errorLog: "Backend dependency 'pdf-lib' is missing." 
-        });
+        await change.after.ref.update({ status: 'error_system', errorLog: "Backend dependency 'pdf-lib' is missing." });
         return null;
     }
 
@@ -49,66 +44,94 @@ exports.sealDocument = functions.firestore
     console.log(`Starting seal for Request: ${requestId}`);
 
     const tempPdfPath = path.join(os.tmpdir(), `orig_${requestId}.pdf`);
-    const tempSigPath = path.join(os.tmpdir(), `sig_${requestId}.png`);
     const outputPdfPath = path.join(os.tmpdir(), `final_${requestId}.pdf`);
+    const tempSigPaths = []; // Track temp signature files to delete later
 
     try {
       const bucket = storage.bucket();
 
-      // 3. Download Files
+      // 2. Download Original PDF
       await bucket.file(newData.storagePath).download({ destination: tempPdfPath });
-      await bucket.file(newData.signatureUrl).download({ destination: tempSigPath });
 
-      // 4. Load PDF & Signature
+      // 3. Load PDF
       const pdfBytes = fs.readFileSync(tempPdfPath);
       const pdfDoc = await PDFDocument.load(pdfBytes);
-      const sigBytes = fs.readFileSync(tempSigPath);
-      const sigImage = await pdfDoc.embedPng(sigBytes);
       const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
-
-      // 5. COORDINATE MATH
-      // Default to Page 1 if config is missing
-      const pageNum = newData.signatureConfig?.pageNumber || 1;
-      const xPercent = newData.signatureConfig?.xPosition || 50;
-      const yPercent = newData.signatureConfig?.yPosition || 50;
-
-      // Get page (0-indexed)
-      const pageIndex = Math.max(0, pageNum - 1);
-      const pages = pdfDoc.getPages();
       
-      if (pageIndex < pages.length) {
-          const page = pages[pageIndex];
+      // 4. PROCESS FIELDS
+      const fields = newData.fields || [];
+      const values = newData.fieldValues || {};
+
+      for (const field of fields) {
+          const val = values[field.id];
+          if (!val) continue; // Skip empty fields
+
+          // Get Page
+          const pageIndex = Math.max(0, (field.pageNumber || 1) - 1);
+          if (pageIndex >= pdfDoc.getPages().length) continue;
+          
+          const page = pdfDoc.getPages()[pageIndex];
           const { width, height } = page.getSize();
 
-          // Calculate absolute PDF coordinates from percentages
-          const pdfX = (xPercent / 100) * width;
-          
-          // PDF coordinate system starts at bottom-left
-          // We must flip the Y axis (Height - Top_Percentage)
-          const sigScale = 150 / sigImage.width; // Scale to 150px wide
-          const sigDims = sigImage.scale(sigScale);
-          
-          const pdfY = height - ((yPercent / 100) * height) - (sigDims.height / 2);
+          // Calculate Coordinates
+          // X/Y are stored as percentages (0-100)
+          const x = (field.xPosition / 100) * width;
+          const y = height - ((field.yPosition / 100) * height); // Top-down flip
 
-          // Draw Signature
-          page.drawImage(sigImage, {
-            x: pdfX,
-            y: pdfY,
-            width: sigDims.width,
-            height: sigDims.height,
-          });
-          
-          // Draw Timestamp
-          page.drawText(`Digitally Signed: ${new Date().toISOString()}`, {
-            x: pdfX,
-            y: pdfY - 10,
-            size: 8,
-            font: helvetica,
-            color: rgb(0.5, 0.5, 0.5),
-          });
+          if (field.type === 'text' || field.type === 'date') {
+              // DRAW TEXT
+              page.drawText(String(val), {
+                  x: x + 2, // Slight padding
+                  y: y - 12, // Adjust for font height (approx)
+                  size: 10,
+                  font: helvetica,
+                  color: rgb(0, 0, 0),
+              });
+          } 
+          else if (field.type === 'checkbox' && val === true) {
+              // DRAW CHECKMARK (X)
+              // Draw two lines to make an X
+              page.drawLine({
+                  start: { x: x, y: y },
+                  end: { x: x + 10, y: y - 10 },
+                  thickness: 2,
+                  color: rgb(0, 0, 0),
+              });
+              page.drawLine({
+                  start: { x: x + 10, y: y },
+                  end: { x: x, y: y - 10 },
+                  thickness: 2,
+                  color: rgb(0, 0, 0),
+              });
+          }
+          else if (field.type === 'signature') {
+              // DRAW SIGNATURE IMAGE
+              // Value is the storage path to the signature PNG
+              const sigTempPath = path.join(os.tmpdir(), `sig_${field.id}.png`);
+              
+              try {
+                  await bucket.file(val).download({ destination: sigTempPath });
+                  tempSigPaths.push(sigTempPath);
+
+                  const sigBytes = fs.readFileSync(sigTempPath);
+                  const sigImage = await pdfDoc.embedPng(sigBytes);
+                  
+                  const sigScale = 150 / sigImage.width;
+                  const sigDims = sigImage.scale(sigScale);
+
+                  page.drawImage(sigImage, {
+                      x: x,
+                      y: y - sigDims.height, // Image draws from bottom-left
+                      width: sigDims.width,
+                      height: sigDims.height,
+                  });
+              } catch (sigErr) {
+                  console.error(`Failed to load signature ${field.id}:`, sigErr);
+              }
+          }
       }
 
-      // 6. Append Audit Trail Page
+      // 5. Append Audit Trail
       const auditPage = pdfDoc.addPage();
       const auditHeight = auditPage.getHeight();
       
@@ -118,11 +141,11 @@ exports.sealDocument = functions.firestore
       const auditLog = `
         Signer Name: ${newData.recipientName || 'Authorized User'}
         Signer Email: ${newData.recipientEmail || 'N/A'}
-        Signed At: ${new Date().toISOString()}
+        Completed At: ${new Date().toISOString()}
         IP Address: ${newData.auditTrail?.ip || 'Recorded'}
         User Agent: ${newData.auditTrail?.userAgent || 'N/A'}
         
-        This document was signed electronically via SafeHaul Secure Auth.
+        This document was securely signed and sealed via SafeHaul.
         Digital Checksum: ${requestId.substring(0, 8)}-${Date.now()}
       `;
       
@@ -134,7 +157,7 @@ exports.sealDocument = functions.firestore
           lineHeight: 14 
       });
 
-      // 7. Save & Upload
+      // 6. Save & Upload Final
       const finalPdfBytes = await pdfDoc.save();
       fs.writeFileSync(outputPdfPath, finalPdfBytes);
       
@@ -145,7 +168,7 @@ exports.sealDocument = functions.firestore
           metadata: { contentType: 'application/pdf' }
       });
 
-      // 8. Update Firestore
+      // 7. Update Firestore
       await change.after.ref.update({
           status: 'signed',
           signedPdfUrl: finalStoragePath,
@@ -162,8 +185,12 @@ exports.sealDocument = functions.firestore
       });
     } finally {
       // Cleanup Temp Files
-      [tempPdfPath, tempSigPath, outputPdfPath].forEach(f => {
-          if (fs.existsSync(f)) fs.unlinkSync(f);
-      });
+      try {
+          if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
+          if (fs.existsSync(outputPdfPath)) fs.unlinkSync(outputPdfPath);
+          tempSigPaths.forEach(p => {
+              if (fs.existsSync(p)) fs.unlinkSync(p);
+          });
+      } catch (cleanupErr) { console.error("Cleanup warning:", cleanupErr); }
     }
   });

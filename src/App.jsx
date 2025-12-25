@@ -12,45 +12,28 @@ const CompanyAdminDashboard = React.lazy(() => import('@features/company-admin/c
 const CompanySettings = React.lazy(() => import('@features/settings/components/CompanySettings').then(m => ({ default: m.CompanySettings })));
 const DriverDashboard = React.lazy(() => import('@features/driver-app/components/DriverDashboard').then(m => ({ default: m.DriverDashboard })));
 const DriverApplicationWizard = React.lazy(() => import('@features/driver-app/components/application/DriverApplicationWizard').then(m => ({ default: m.DriverApplicationWizard })));
-
-// Handles public application links
 const PublicApplyHandler = React.lazy(() => import('@features/driver-app/components/application/PublicApplyHandler').then(m => ({ default: m.PublicApplyHandler })));
-
-// --- DIGITAL SIGNATURE FEATURES ---
 const SigningRoom = React.lazy(() => import('@features/signing/SigningRoom'));
-const CreateEnvelopePage = React.lazy(() => import('@features/company-admin/views/CreateEnvelopePage')); // <--- NEW IMPORT
+const CreateEnvelopePage = React.lazy(() => import('@features/company-admin/views/CreateEnvelopePage')); 
 
 // --- ROUTE GUARDS ---
 function RootRedirect() {
   const { currentUser, userRole, loading } = useData();
-  if (loading) {
-    return <GlobalLoadingState />;
-  }
+  if (loading) return <GlobalLoadingState />;
   if (!currentUser) return <Navigate to="/login" />;
-  if (!userRole) {
-    return <GlobalLoadingState />;
-  }
-
-  switch (userRole) {
-    case 'super_admin': return <Navigate to="/super-admin" />;
-    case 'admin': return <Navigate to="/company/dashboard" />;
-    case 'driver': return <Navigate to="/driver/dashboard" />;
-    default: return <GlobalLoadingState />;
-  }
+  
+  if (userRole === 'super_admin') return <Navigate to="/super-admin" />;
+  if (userRole === 'admin') return <Navigate to="/company/dashboard" />;
+  if (userRole === 'driver') return <Navigate to="/driver/dashboard" />;
+  
+  return <GlobalLoadingState />;
 }
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser, userRole, loading } = useData();
-  
-  if (loading) {
-    return <GlobalLoadingState />;
-  }
-  if (!currentUser) {
-    return <Navigate to="/login" />;
-  }
-  if (allowedRoles && !allowedRoles.includes(userRole)) {
-      return <Navigate to="/" />;
-  }
+  if (loading) return <GlobalLoadingState />;
+  if (!currentUser) return <Navigate to="/login" />;
+  if (allowedRoles && !allowedRoles.includes(userRole)) return <Navigate to="/" />;
   return children;
 }
 
@@ -61,41 +44,30 @@ function AppRoutes() {
   return (
       <Suspense fallback={<GlobalLoadingState />}>
         <Routes>
-            {/* --- PUBLIC ROUTES --- */}
+            {/* --- PUBLIC ROUTES (No Login Required) --- */}
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/join/:companyId" element={<TeamMemberSignup />} />
-            
-            {/* Handles 'myapp.com/apply/company-name' links */}
             <Route path="/apply/:slug" element={<PublicApplyHandler />} />
 
-            {/* --- SECURE SIGNING ROOM (DRIVER) --- */}
-            <Route path="/sign/:companyId/:requestId" element={
-                <ProtectedRoute allowedRoles={['driver', 'admin', 'super_admin']}>
-                    <SigningRoom />
-                </ProtectedRoute>
-            } />
+            {/* FIX: Signing Room is now PUBLIC. It handles its own security via Token. */}
+            <Route path="/sign/:companyId/:requestId" element={<SigningRoom />} />
 
-            {/* --- SUPER ADMIN --- */}
+            {/* --- PROTECTED ROUTES (Login Required) --- */}
+            
+            {/* Super Admin */}
             <Route path="/super-admin/*" element={
                 <ProtectedRoute allowedRoles={['super_admin']}>
                     <SuperAdminDashboard />
                 </ProtectedRoute>
             } />
 
-            {/* --- COMPANY ADMIN (HR) --- */}
+            {/* Company Admin / HR */}
             <Route path="/company/dashboard" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                    {currentCompanyProfile ? (
-                        <CompanyAdminDashboard />
-                    ) : (
-                        <div className="min-h-screen flex items-center justify-center text-gray-500">
-                            Please select a company.
-                        </div>
-                    )}
+                    {currentCompanyProfile ? <CompanyAdminDashboard /> : <div className="min-h-screen flex items-center justify-center">Please select a company.</div>}
                 </ProtectedRoute>
             } />
             
-            {/* NEW: ENVELOPE CREATOR */}
             <Route path="/company/documents/new" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                      <CreateEnvelopePage />
@@ -108,7 +80,7 @@ function AppRoutes() {
                 </ProtectedRoute>
             } />
 
-            {/* --- DRIVER APP --- */}
+            {/* Driver App */}
             <Route path="/driver/dashboard" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverDashboard />
@@ -127,7 +99,7 @@ function AppRoutes() {
                 </ProtectedRoute>
             } />
 
-            {/* --- FALLBACKS --- */}
+            {/* Fallbacks */}
             <Route path="/" element={<RootRedirect />} />
             <Route path="*" element={<Navigate to="/" />} />
         </Routes>

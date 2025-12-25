@@ -1,186 +1,240 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, getDownloadURL, uploadString } from 'firebase/storage';
-import { db, storage, auth } from '@lib/firebase';
+import { useParams, useSearchParams } from 'react-router-dom';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@lib/firebase';
 import { initializeSignatureCanvas, clearCanvas, isCanvasEmpty, getSignatureDataUrl } from '@lib/signature';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { Loader2, CheckCircle, AlertTriangle, PenTool, X, ChevronRight } from 'lucide-react';
+import { Loader2, CheckCircle, PenTool, X, ChevronRight, AlertTriangle } from 'lucide-react';
+import confetti from 'canvas-confetti';
 
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
+import 'react-pdf/dist/Page/AnnotationLayer.css';
+import 'react-pdf/dist/Page/TextLayer.css';
+
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 export default function SigningRoom() {
   const { companyId, requestId } = useParams();
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const accessToken = searchParams.get('token'); // Get token from URL
   
   const [request, setRequest] = useState(null);
-  const [pdfUrl, setPdfUrl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [numPages, setNumPages] = useState(null);
-  const [isSigning, setIsSigning] = useState(false); // Modal Open?
+  
+  // Data State
+  const [fieldValues, setFieldValues] = useState({}); 
+  const [activeSignatureField, setActiveSignatureField] = useState(null); 
   const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
 
-  // Load Data
+  // 1. Load Document via Public API
   useEffect(() => {
     async function load() {
-      if (!auth.currentUser) return;
+      if (!accessToken) {
+          setError("Invalid Link: No access token provided.");
+          setLoading(false);
+          return;
+      }
+
       try {
-        const snap = await getDoc(doc(db, 'companies', companyId, 'signing_requests', requestId));
-        if (!snap.exists()) throw new Error("Document not found");
+        const getEnvelopeFn = httpsCallable(functions, 'getPublicEnvelope');
+        const result = await getEnvelopeFn({ 
+            companyId, 
+            requestId, 
+            accessToken 
+        });
         
-        // Simple Auth Check (Rules enforce strict check)
-        // Note: For now we allow reading if we have the link, assuming the driver is logged in.
+        const data = result.data;
+        setRequest(data);
         
-        setRequest(snap.data());
-        const url = await getDownloadURL(ref(storage, snap.data().storagePath));
-        setPdfUrl(url);
+        // Initialize Fields
+        if (data.fields) {
+            const initial = {};
+            data.fields.forEach(f => {
+                initial[f.id] = (f.type === 'checkbox' ? false : '');
+            });
+            setFieldValues(initial);
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Load Error:", err);
+        setError("Document not found or link expired.");
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [companyId, requestId]);
+  }, [companyId, requestId, accessToken]);
 
   // Init Canvas
   useEffect(() => {
-    if (isSigning) setTimeout(initializeSignatureCanvas, 100);
-  }, [isSigning]);
+    if (activeSignatureField) setTimeout(initializeSignatureCanvas, 100);
+  }, [activeSignatureField]);
+
+  const handleFieldChange = (id, value) => {
+      setFieldValues(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleSaveSignature = async () => {
+    if (isCanvasEmpty()) return alert("Please sign first.");
+    const sigData = getSignatureDataUrl();
+    handleFieldChange(activeSignatureField, sigData);
+    setActiveSignatureField(null);
+  };
 
   const handleFinishSigning = async () => {
-    if (isCanvasEmpty()) return alert("Please sign first.");
+    // Validate
+    const missing = request.fields?.filter(f => f.required && !fieldValues[f.id]) || [];
+    if (missing.length > 0) {
+        alert(`Please complete all required fields. (${missing.length} remaining)`);
+        return;
+    }
+
     setSubmitting(true);
     try {
-        const sigData = getSignatureDataUrl();
-        // Upload Signature Image
-        const sigPath = `secure_documents/${companyId}/signatures/${requestId}_${Date.now()}.png`;
-        await uploadString(ref(storage, sigPath), sigData, 'data_url');
+        // Collect Audit Info
+        const auditData = {
+            ip: '127.0.0.1', // Cloud Function will resolve real IP if needed, or we fetch from an IP service here
+            userAgent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+        };
 
-        // Update Request -> Triggers Backend Sealing
-        await updateDoc(doc(db, 'companies', companyId, 'signing_requests', requestId), {
-            status: 'pending_seal',
-            signatureUrl: sigPath,
-            signedAt: serverTimestamp(),
-            // Audit Data
-            auditTrail: {
-                ip: '127.0.0.1', // Use a function to get real IP if needed
-                userAgent: navigator.userAgent,
-                signedBy: auth.currentUser.email
-            }
+        const submitFn = httpsCallable(functions, 'submitPublicEnvelope');
+        await submitFn({
+            companyId,
+            requestId,
+            accessToken,
+            fieldValues,
+            auditData
         });
-        
-        setRequest(prev => ({ ...prev, status: 'pending_seal' }));
-        setIsSigning(false);
-        alert("Document signed! Processing...");
+
+        setSuccess(true);
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 
     } catch (e) {
-        console.error(e);
-        alert("Error saving signature.");
+        console.error("Submission Error:", e);
+        alert("Error saving document: " + e.message);
     } finally {
         setSubmitting(false);
     }
   };
 
-  if (loading) return <GlobalLoadingState />;
+  if (loading) return (
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+          <Loader2 className="animate-spin text-blue-600 mb-2" size={40}/>
+          <p className="text-gray-500 font-medium ml-3">Loading secure document...</p>
+      </div>
+  );
 
-  // Helper: Render the "Click to Sign" Button
-  const renderSignButton = (pageNum) => {
-     // Only render if this is the correct page AND status is sent
-     if (request.status !== 'sent') return null;
-     if (request.signatureConfig?.pageNumber !== pageNum) return null;
+  if (error) return (
+      <div className="h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white p-8 rounded-xl shadow-lg border border-red-100 text-center max-w-md">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle size={32}/>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h3>
+              <p className="text-gray-600">{error}</p>
+          </div>
+      </div>
+  );
 
-     const { xPosition, yPosition } = request.signatureConfig;
+  if (success) return (
+      <div className="h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white p-10 rounded-2xl shadow-xl border border-green-100 text-center max-w-md animate-in zoom-in-95 duration-300">
+              <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <CheckCircle size={48}/>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Document Signed!</h2>
+              <p className="text-gray-600 mb-6">
+                  Thank you, <strong>{request.recipientName}</strong>. The document has been securely sealed and sent to the sender.
+              </p>
+              <button onClick={() => window.close()} className="text-blue-600 font-semibold hover:underline">
+                  Close Window
+              </button>
+          </div>
+      </div>
+  );
 
-     return (
-        <div 
-            className="absolute z-20 cursor-pointer animate-pulse"
-            style={{ 
-                left: `${xPosition}%`, 
-                top: `${yPosition}%`,
-                transform: 'translate(0, 0)' // We stored top-left coordinates
-            }}
-            onClick={() => setIsSigning(true)}
-        >
-            <div className="bg-yellow-400 hover:bg-yellow-300 border-2 border-yellow-700 text-yellow-900 font-bold px-4 py-3 rounded shadow-lg flex items-center gap-2">
-                <PenTool size={20} />
-                <span>CLICK TO SIGN</span>
-                <div className="absolute -right-1 -top-1 w-3 h-3 bg-red-500 rounded-full"></div>
-            </div>
-        </div>
-     );
-  };
-  
-  // Helper: Render the Final Signature Image (If signed)
-  const renderSignedImage = (pageNum) => {
-      if (request.status === 'sent') return null;
-      if (request.signatureConfig?.pageNumber !== pageNum) return null;
+  const renderField = (field) => {
+      // Use stored Width/Height or defaults
+      const width = field.width || 160;
+      const height = field.height || 40;
+
+      const style = {
+          left: `${field.xPosition}%`,
+          top: `${field.yPosition}%`,
+          width: `${width}px`, 
+          height: `${height}px`,
+          position: 'absolute',
+          zIndex: 20,
+          transform: 'translate(0, 0)'
+      };
       
-      // If it's already signed, we might want to show a placeholder or just let the PDF show (if sealed)
-      // Since the backend seals it, the new PDF will have it. 
-      // But while 'pending_seal', we can show a placeholder.
-      if (request.status === 'pending_seal') {
-          const { xPosition, yPosition } = request.signatureConfig;
-          return (
-             <div className="absolute border-2 border-green-500 bg-green-100/50 px-4 py-2 text-green-700 font-bold rounded"
-                style={{ left: `${xPosition}%`, top: `${yPosition}%` }}>
-                <CheckCircle size={16} className="inline mr-1"/> Signed
-             </div>
-          );
+      if (request.status === 'signed') return null;
+
+      switch(field.type) {
+          case 'text': return (
+              <input style={style}
+                className="border-2 border-blue-400 bg-blue-50/90 px-2 text-sm rounded"
+                placeholder="Type here..." value={fieldValues[field.id] || ''}
+                onChange={(e) => handleFieldChange(field.id, e.target.value)} /> );
+          case 'date': return (
+              <input type="date" style={style}
+                className="border-2 border-green-400 bg-green-50/90 px-2 text-sm rounded"
+                value={fieldValues[field.id] || ''} onChange={(e) => handleFieldChange(field.id, e.target.value)} /> );
+          case 'checkbox': return (
+              <input type="checkbox" style={style}
+                className="accent-purple-600 cursor-pointer" checked={!!fieldValues[field.id]}
+                onChange={(e) => handleFieldChange(field.id, e.target.checked)} /> );
+          case 'signature':
+              const isSigned = !!fieldValues[field.id];
+              return (
+                  <div style={style}
+                    onClick={() => setActiveSignatureField(field.id)}
+                    className={`cursor-pointer border-2 border-dashed rounded flex items-center justify-center gap-2 shadow-sm transition ${isSigned ? 'bg-yellow-100 border-yellow-600' : 'bg-yellow-50/90 border-yellow-400 hover:bg-yellow-100'}`}>
+                      {isSigned ? <div className="text-yellow-800 font-bold text-xs flex items-center gap-1"><CheckCircle size={14}/> Signed</div> : <div className="text-yellow-700 font-medium text-xs flex items-center gap-1"><PenTool size={14}/> Sign</div>}
+                  </div> );
+          default: return null;
       }
-      return null;
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gray-100 flex flex-col font-sans">
         <header className="bg-white p-4 shadow-sm flex justify-between items-center sticky top-0 z-30">
-            <h1 className="font-bold text-gray-800">{request?.title || 'Document'}</h1>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide
-                ${request?.status === 'sent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                Status: {request?.status}
+            <div>
+                <h1 className="font-bold text-gray-800">{request?.title || 'Document'}</h1>
+                <p className="text-xs text-gray-500">Recipient: {request?.recipientEmail}</p>
             </div>
+            
+            <button onClick={handleFinishSigning} disabled={submitting} className="px-6 py-2 bg-green-600 text-white font-bold rounded shadow hover:bg-green-700 transition flex items-center gap-2 disabled:opacity-50">
+                {submitting ? <Loader2 className="animate-spin" size={16}/> : <CheckCircle size={16}/>} 
+                Finish & Submit
+            </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-8 flex justify-center">
-            <Document file={pdfUrl} onLoadSuccess={({numPages}) => setNumPages(numPages)} className="flex flex-col gap-6">
+        <main className="flex-1 overflow-y-auto p-8 flex justify-center bg-gray-200/50">
+            <Document file={request.pdfUrl} onLoadSuccess={({numPages}) => setNumPages(numPages)} className="flex flex-col gap-6">
                 {Array.from(new Array(numPages), (el, index) => (
-                    <div key={index} className="relative shadow-lg border bg-white">
+                    <div key={index} className="relative shadow-xl border border-gray-300 bg-white">
                         <Page pageNumber={index + 1} width={Math.min(window.innerWidth - 40, 800)} renderAnnotationLayer={false} renderTextLayer={false}/>
-                        {renderSignButton(index + 1)}
-                        {renderSignedImage(index + 1)}
+                        {request?.fields?.filter(f => f.pageNumber === index + 1).map(field => <React.Fragment key={field.id}>{renderField(field)}</React.Fragment>)}
                     </div>
                 ))}
             </Document>
         </main>
 
-        {/* Signature Modal (Reused) */}
-        {isSigning && (
+        {activeSignatureField && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-                <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden">
-                    <div className="bg-gray-50 p-4 border-b flex justify-between items-center">
-                        <h3 className="font-bold">Adopt Your Signature</h3>
-                        <button onClick={() => setIsSigning(false)}><X size={20}/></button>
-                    </div>
+                <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden animate-in zoom-in duration-200">
+                    <div className="bg-gray-50 p-4 border-b flex justify-between items-center"><h3 className="font-bold text-gray-700">Draw Your Signature</h3><button onClick={() => setActiveSignatureField(null)}><X size={20}/></button></div>
                     <div className="p-6 text-center">
-                         <div className="border-2 border-dashed border-gray-300 rounded bg-gray-50 mb-4 relative">
-                            <canvas id="signature-canvas" className="w-full h-40 touch-none"></canvas>
-                            <button id="clear-signature" onClick={clearCanvas} className="absolute bottom-2 right-2 text-xs text-red-500 underline">Clear</button>
-                         </div>
-                         <p className="text-xs text-gray-400">By clicking "Sign", I agree to be legally bound by this electronic signature.</p>
+                         <div className="border-2 border-dashed border-gray-300 rounded bg-white mb-4 relative"><canvas id="signature-canvas" className="w-full h-40 touch-none cursor-crosshair"></canvas><button id="clear-signature" onClick={clearCanvas} className="absolute bottom-2 right-2 text-xs text-red-500 bg-white border border-gray-200 px-2 py-1 rounded">Clear</button></div>
+                         <p className="text-xs text-gray-400">By clicking "Adopt", I agree this is my legal signature.</p>
                     </div>
-                    <div className="p-4 bg-gray-50 flex justify-end gap-2">
-                        <button onClick={() => setIsSigning(false)} className="px-4 py-2 text-gray-600">Cancel</button>
-                        <button onClick={handleFinishSigning} disabled={submitting} className="px-6 py-2 bg-green-600 text-white font-bold rounded shadow hover:bg-green-700 flex items-center gap-2">
-                            {submitting ? <Loader2 className="animate-spin"/> : <CheckCircle size={16}/>} Sign Document
-                        </button>
-                    </div>
+                    <div className="p-4 bg-gray-50 flex justify-end gap-2 border-t"><button onClick={() => setActiveSignatureField(null)} className="px-4 py-2 text-gray-600 font-medium">Cancel</button><button onClick={handleSaveSignature} className="px-6 py-2 bg-blue-600 text-white font-bold rounded shadow hover:bg-blue-700">Adopt Signature</button></div>
                 </div>
             </div>
         )}
     </div>
   );
-}
-
-function GlobalLoadingState() {
-    return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" size={40}/></div>;
 }

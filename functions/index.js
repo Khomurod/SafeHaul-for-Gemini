@@ -1,51 +1,61 @@
-// hr portal/functions/index.js
-const driverSync = require("./driverSync");
-const hrAdmin = require("./hrAdmin");
-const companyAdmin = require("./companyAdmin");
-const leadDistribution = require("./leadDistribution");
-const digitalSealing = require("./digitalSealing"); // <--- NEW IMPORT
+const functions = require('firebase-functions/v1');
+const admin = require('firebase-admin');
 
-// --- 1. DRIVER PROFILE SYNC ---
-exports.onApplicationSubmitted = driverSync.onApplicationSubmitted;
-exports.onLeadSubmitted = driverSync.onLeadSubmitted;
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
-// --- 2. HR & USER MANAGEMENT ---
-exports.createPortalUser = hrAdmin.createPortalUser;
-exports.onMembershipWrite = hrAdmin.onMembershipWrite;
-exports.deletePortalUser = hrAdmin.deletePortalUser;
-exports.updatePortalUser = hrAdmin.updatePortalUser;
-exports.joinCompanyTeam = hrAdmin.joinCompanyTeam;
+// --- IMPORTS ---
+const companyAdmin = require('./companyAdmin');
+const hrAdmin = require('./hrAdmin');
+const leadLogic = require('./leadLogic');
+const leadDistribution = require('./leadDistribution');
+const digitalSealing = require('./digitalSealing');
+const notifySigner = require('./notifySigner');
 
-// --- 3. COMPANY ADMINISTRATION ---
-exports.deleteCompany = companyAdmin.deleteCompany;
+// --- EXPORTS ---
+
+// 1. Docs & Email
+exports.sealDocument = digitalSealing.sealDocument;
+exports.notifySigner = notifySigner.notifySigner; 
+
+// 2. Auth
+exports.createPortalUser = companyAdmin.createPortalUser;
+exports.deletePortalUser = companyAdmin.deletePortalUser;
+exports.updatePortalUser = companyAdmin.updatePortalUser;
+exports.onMembershipWrite = companyAdmin.onMembershipWrite;
+
+// 3. Company
 exports.getCompanyProfile = companyAdmin.getCompanyProfile;
-exports.moveApplication = companyAdmin.moveApplication;
-exports.sendAutomatedEmail = companyAdmin.sendAutomatedEmail;
+exports.joinCompanyTeam = companyAdmin.joinCompanyTeam;
+exports.deleteCompany = companyAdmin.deleteCompany;
 exports.getTeamPerformanceHistory = companyAdmin.getTeamPerformanceHistory;
 
-// --- 4. MAINTENANCE TOOLS ---
-// "Run Migration" = Quota Fixer (Legacy but useful)
-exports.runMigration = companyAdmin.runMigration;
-// "Fix Data" = Driver -> Lead Copier (The new logic you need)
-// FIX: Pointing this to leadDistribution so it uses the real copier
-exports.migrateDriversToLeads = leadDistribution.migrateDriversToLeads;
+// 4. HR & Applications
+exports.onApplicationSubmitted = hrAdmin.onApplicationSubmitted;
+exports.moveApplication = hrAdmin.moveApplication;
+exports.sendAutomatedEmail = hrAdmin.sendAutomatedEmail;
 
-// --- 5. LEAD DISTRIBUTION SYSTEM (CONSOLIDATED) ---
-// The Main Scheduled Task (Runs Midnight EST)
-exports.runLeadDistribution = leadDistribution.runLeadDistribution;
-// The Manual "Distribute" Button (Callable)
-exports.distributeDailyLeads = leadDistribution.distributeDailyLeads;
-// Backup/Alias for scheduling
+// 5. Leads
+exports.onLeadSubmitted = leadLogic.onLeadSubmitted;
+exports.cleanupBadLeads = leadLogic.cleanupBadLeads;
+exports.handleLeadOutcome = leadLogic.handleLeadOutcome;
+exports.migrateDriversToLeads = leadLogic.migrateDriversToLeads;
+exports.confirmDriverInterest = leadLogic.confirmDriverInterest;
+
+// 6. Distribution
 exports.distributeDailyLeadsScheduled = leadDistribution.distributeDailyLeadsScheduled;
-// Cleanup Tool
-exports.cleanupBadLeads = leadDistribution.cleanupBadLeads;
-// Recruiter Logic (Pool Outcomes)
-exports.handleLeadOutcome = leadDistribution.handleLeadOutcome;
-// Daily Analytics
-exports.aggregateAnalytics = leadDistribution.aggregateAnalytics;
-// Driver Interest Link
-exports.confirmDriverInterest = leadDistribution.confirmDriverInterest;
+exports.runLeadDistribution = leadDistribution.runLeadDistribution;
 
-// --- 6. DIGITAL SIGNATURES (New Feature) ---
-// Listens for 'pending_seal' status and burns signature into PDF
-exports.sealDocument = digitalSealing.sealDocument;
+// 7. Migration
+exports.runMigration = companyAdmin.runMigration;
+
+// 8. Analytics (TEMPORARILY DISABLED TO FIX DEPLOYMENT)
+// The "aggregateAnalytics" function was causing CPU configuration errors.
+// We are pausing it so you can deploy the email feature.
+/*
+exports.aggregateAnalytics = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
+    const analytics = require('./analytics');
+    return analytics.aggregateAnalytics(context);
+});
+*/
