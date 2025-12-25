@@ -1,6 +1,5 @@
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-
 import { DataProvider, useData } from '@/context/DataContext';
 import { ToastProvider, ErrorBoundary, GlobalLoadingState } from '@shared/components/feedback';
 
@@ -17,17 +16,17 @@ const DriverApplicationWizard = React.lazy(() => import('@features/driver-app/co
 // Handles public application links
 const PublicApplyHandler = React.lazy(() => import('@features/driver-app/components/application/PublicApplyHandler').then(m => ({ default: m.PublicApplyHandler })));
 
-// --- ROUTE GUARDS ---
+// --- DIGITAL SIGNATURE FEATURES ---
+const SigningRoom = React.lazy(() => import('@features/signing/SigningRoom'));
+const CreateEnvelopePage = React.lazy(() => import('@features/company-admin/views/CreateEnvelopePage')); // <--- NEW IMPORT
 
+// --- ROUTE GUARDS ---
 function RootRedirect() {
   const { currentUser, userRole, loading } = useData();
-
   if (loading) {
     return <GlobalLoadingState />;
   }
-
   if (!currentUser) return <Navigate to="/login" />;
-
   if (!userRole) {
     return <GlobalLoadingState />;
   }
@@ -42,24 +41,20 @@ function RootRedirect() {
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { currentUser, userRole, loading } = useData();
-
+  
   if (loading) {
     return <GlobalLoadingState />;
   }
-
   if (!currentUser) {
     return <Navigate to="/login" />;
   }
-
   if (allowedRoles && !allowedRoles.includes(userRole)) {
       return <Navigate to="/" />;
   }
-
   return children;
 }
 
 // --- MAIN ROUTER ---
-
 function AppRoutes() {
   const { currentCompanyProfile } = useData();
 
@@ -69,9 +64,16 @@ function AppRoutes() {
             {/* --- PUBLIC ROUTES --- */}
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/join/:companyId" element={<TeamMemberSignup />} />
-
+            
             {/* Handles 'myapp.com/apply/company-name' links */}
             <Route path="/apply/:slug" element={<PublicApplyHandler />} />
+
+            {/* --- SECURE SIGNING ROOM (DRIVER) --- */}
+            <Route path="/sign/:companyId/:requestId" element={
+                <ProtectedRoute allowedRoles={['driver', 'admin', 'super_admin']}>
+                    <SigningRoom />
+                </ProtectedRoute>
+            } />
 
             {/* --- SUPER ADMIN --- */}
             <Route path="/super-admin/*" element={
@@ -92,7 +94,14 @@ function AppRoutes() {
                     )}
                 </ProtectedRoute>
             } />
-
+            
+            {/* NEW: ENVELOPE CREATOR */}
+            <Route path="/company/documents/new" element={
+                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+                     <CreateEnvelopePage />
+                </ProtectedRoute>
+            } />
+            
             <Route path="/company/settings" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                     {currentCompanyProfile ? <CompanySettings /> : <Navigate to="/company/dashboard" />}
@@ -105,13 +114,13 @@ function AppRoutes() {
                     <DriverDashboard />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/driver/apply" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverApplicationWizard />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/driver/apply/:companyId" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverApplicationWizard />
@@ -130,10 +139,10 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ToastProvider>
-        <DataProvider> 
-          <Router>
-            <AppRoutes />
-          </Router>
+        <DataProvider>
+           <Router>
+             <AppRoutes />
+           </Router>
         </DataProvider>
       </ToastProvider>
     </ErrorBoundary>

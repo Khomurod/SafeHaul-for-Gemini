@@ -1,9 +1,9 @@
 // hr portal/functions/index.js
-
 const driverSync = require("./driverSync");
 const hrAdmin = require("./hrAdmin");
 const companyAdmin = require("./companyAdmin");
 const leadDistribution = require("./leadDistribution");
+const digitalSealing = require("./digitalSealing"); // <--- NEW IMPORT
 
 // --- 1. DRIVER PROFILE SYNC ---
 exports.onApplicationSubmitted = driverSync.onApplicationSubmitted;
@@ -26,30 +26,26 @@ exports.getTeamPerformanceHistory = companyAdmin.getTeamPerformanceHistory;
 // --- 4. MAINTENANCE TOOLS ---
 // "Run Migration" = Quota Fixer (Legacy but useful)
 exports.runMigration = companyAdmin.runMigration;
-
 // "Fix Data" = Driver -> Lead Copier (The new logic you need)
 // FIX: Pointing this to leadDistribution so it uses the real copier
 exports.migrateDriversToLeads = leadDistribution.migrateDriversToLeads;
 
 // --- 5. LEAD DISTRIBUTION SYSTEM (CONSOLIDATED) ---
-
 // The Main Scheduled Task (Runs Midnight EST)
 exports.runLeadDistribution = leadDistribution.runLeadDistribution;
-
 // The Manual "Distribute" Button (Callable)
 exports.distributeDailyLeads = leadDistribution.distributeDailyLeads;
-
 // Backup/Alias for scheduling
 exports.distributeDailyLeadsScheduled = leadDistribution.distributeDailyLeadsScheduled;
-
 // Cleanup Tool
 exports.cleanupBadLeads = leadDistribution.cleanupBadLeads;
-
 // Recruiter Logic (Pool Outcomes)
 exports.handleLeadOutcome = leadDistribution.handleLeadOutcome;
-
 // Daily Analytics
 exports.aggregateAnalytics = leadDistribution.aggregateAnalytics;
-
 // Driver Interest Link
 exports.confirmDriverInterest = leadDistribution.confirmDriverInterest;
+
+// --- 6. DIGITAL SIGNATURES (New Feature) ---
+// Listens for 'pending_seal' status and burns signature into PDF
+exports.sealDocument = digitalSealing.sealDocument;

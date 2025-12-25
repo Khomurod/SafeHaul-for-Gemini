@@ -55,10 +55,7 @@ service firebase.storage {
       allow read: if isOwner(applicantId) || isCompanyTeam(companyId);
       
       // Write Logic:
-      // 1. Super Admin: BYPASSES 'isValidFile' (Allows .txt for diagnostics)
-      // 2. Auth User: Standard validation
-      // 3. Guest: Strict validation
-      allow write: if (isSuperAdmin()) || 
+      allow write: if (isSuperAdmin()) ||
                       (isSignedIn() && (isOwner(applicantId) || isCompanyTeam(companyId)) && isValidFile()) ||
                       (!isSignedIn() && isValidGuestFile());
     }
@@ -71,6 +68,19 @@ service firebase.storage {
     // 5. System Health Tests (The .txt upload test)
     match /system_health_tests/{fileName} {
       allow read, write: if isSuperAdmin();
+    }
+
+    // 6. SECURE DOCUMENTS (DocuSign Feature)
+    // Path: secure_documents/{companyId}/{driverId}/{requestId}/filename
+    match /secure_documents/{companyId}/{driverId}/{requestId}/{allPaths=**} {
+       // Read: Company Team OR the specific Driver
+       allow read: if isCompanyTeam(companyId) || isOwner(driverId);
+       
+       // Write: 
+       // - Company: Can upload the blank PDF contracts
+       // - Driver: Can upload their Signature Images (for the sealing process)
+       allow write: if isCompanyTeam(companyId) || 
+                      (isOwner(driverId) && request.resource.contentType.matches('image/.*'));
     }
   }
 }
