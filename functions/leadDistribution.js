@@ -4,7 +4,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { 
     runLeadDistribution, 
-    populateLeadsFromDrivers, // <--- IMPORTED
+    populateLeadsFromDrivers, 
     runCleanup,
     processLeadOutcome,
     generateDailyAnalytics,
@@ -13,34 +13,38 @@ const {
 
 const RUNTIME_OPTS = {
     timeoutSeconds: 540,
-    memory: '512MiB', // Increased Memory for Heavy Migration
+    memory: '512MiB', 
     maxInstances: 1,
     concurrency: 1,
     cors: true 
 };
 
-// --- 1. SCHEDULED TASK ---
+// --- 1. SCHEDULED TASK (6:30 AM Central Time) ---
 exports.runLeadDistribution = onSchedule({
-    schedule: "0 0 * * *", 
-    timeZone: "America/New_York",
+    schedule: "30 6 * * *", 
+    timeZone: "America/Chicago",
     timeoutSeconds: 540,
     memory: '512MiB'
 }, async (event) => {
     try {
-        const result = await runLeadDistribution(false);
+        console.log("Running scheduled daily distribution (6:30 AM CT)...");
+        // forceRotate is true here to ensure leads rotate every morning
+        const result = await runLeadDistribution(true);
         console.log("Scheduled result:", result);
     } catch (error) {
         console.error("Scheduled failed:", error);
     }
 });
 
-// --- 2. MANUAL BUTTON ---
+// --- 2. MANUAL BUTTON (Force New Round) ---
 exports.distributeDailyLeads = onCall(RUNTIME_OPTS, async (request) => {
     if (!request.auth || request.auth.token.roles?.globalRole !== 'super_admin') {
         throw new HttpsError("permission-denied", "Super Admin only.");
     }
     try {
-        const result = await runLeadDistribution(false); 
+        console.log("Super Admin forcing manual lead distribution round...");
+        // forceRotate is true here to fulfill the 'force new round' requirement
+        const result = await runLeadDistribution(true); 
         return result;
     } catch (error) {
         throw new HttpsError("internal", error.message);
@@ -82,7 +86,7 @@ exports.handleLeadOutcome = onCall(RUNTIME_OPTS, async (request) => {
 // --- 5. ANALYTICS ---
 exports.aggregateAnalytics = onSchedule({
     schedule: "55 23 * * *",
-    timeZone: "America/New_York",
+    timeZone: "America/Chicago",
     timeoutSeconds: 540,
     memory: '256MiB'
 }, async (event) => {
@@ -105,7 +109,6 @@ exports.confirmDriverInterest = onCall(RUNTIME_OPTS, async (request) => {
 });
 
 // --- 7. MIGRATION TOOL (Fix Data Button) ---
-// This now uses the REAL logic
 exports.migrateDriversToLeads = onCall(RUNTIME_OPTS, async (request) => {
     if (!request.auth || request.auth.token.roles?.globalRole !== 'super_admin') {
         throw new HttpsError("permission-denied", "Super Admin only.");
@@ -118,5 +121,5 @@ exports.migrateDriversToLeads = onCall(RUNTIME_OPTS, async (request) => {
     }
 });
 
-// Alias
+// Alias for backwards compatibility if needed
 exports.distributeDailyLeadsScheduled = exports.runLeadDistribution;
