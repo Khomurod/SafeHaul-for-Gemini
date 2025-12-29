@@ -1,3 +1,4 @@
+// src/App.jsx
 import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { DataProvider, useData } from '@/context/DataContext';
@@ -28,11 +29,11 @@ function RootRedirect() {
   const { currentUser, userRole, loading } = useData();
   if (loading) return <GlobalLoadingState />;
   if (!currentUser) return <Navigate to="/login" />;
-
+  
   if (userRole === 'super_admin') return <Navigate to="/super-admin" />;
   if (userRole === 'admin') return <Navigate to="/company/dashboard" />;
   if (userRole === 'driver') return <Navigate to="/driver/dashboard" />;
-
+  
   return <GlobalLoadingState />;
 }
 
@@ -54,16 +55,18 @@ function AppRoutes() {
             {/* --- PUBLIC ROUTES (No Login Required) --- */}
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/join/:companyId" element={<TeamMemberSignup />} />
-
+            
             {/* Public Driver Routes */}
             <Route path="/apply/:slug" element={<PublicApplyHandler />} />
-            <Route path="/interest/:slug" element={<InterestPage />} /> {/* <--- NEW ROUTE */}
-
+            
+            {/* FIX: New route for personalized recruiter invites */}
+            <Route path="/interest/:slug" element={<InterestPage />} /> 
+            
             {/* Signing Room (Publicly Accessible via Token) */}
             <Route path="/sign/:companyId/:requestId" element={<SigningRoom />} />
 
             {/* --- PROTECTED ROUTES (Login Required) --- */}
-
+            
             {/* Super Admin */}
             <Route path="/super-admin/*" element={
                 <ProtectedRoute allowedRoles={['super_admin']}>
@@ -77,14 +80,14 @@ function AppRoutes() {
                     {currentCompanyProfile ? <CompanyAdminDashboard /> : <div className="min-h-screen flex items-center justify-center">Please select a company.</div>}
                 </ProtectedRoute>
             } />
-
-            {/* NEW: Documents Center Hub */}
+            
+            {/* Documents Center Hub */}
             <Route path="/company/documents" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                      <DocumentsManager />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/company/settings" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                     {currentCompanyProfile ? <CompanySettings /> : <Navigate to="/company/dashboard" />}
@@ -97,13 +100,13 @@ function AppRoutes() {
                     <DriverDashboard />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/driver/apply" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverApplicationWizard />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/driver/apply/:companyId" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverApplicationWizard />
