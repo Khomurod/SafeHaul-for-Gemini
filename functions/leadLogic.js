@@ -1,13 +1,11 @@
 // functions/leadLogic.js
 const { admin, db, auth } = require("./firebaseAdmin");
 
-// --- CONSTANTS ---
+// --- CONSTANTS (PRESERVED) ---
 const QUOTA_FREE = 50;
 const QUOTA_PAID = 200;
-
-// Legacy Constants (Preserved for Cleanup/Outcomes)
-const EXPIRY_SHORT_MS = 24 * 60 * 60 * 1000; 
-const EXPIRY_LONG_MS = 7 * 24 * 60 * 60 * 1000; 
+const EXPIRY_SHORT_MS = 24 * 60 * 60 * 1000; // 24 Hours
+const EXPIRY_LONG_MS = 7 * 24 * 60 * 60 * 1000; // 7 Days
 const POOL_COOL_OFF_DAYS = 7;
 const POOL_INTEREST_LOCK_DAYS = 7;
 const POOL_HIRED_LOCK_DAYS = 60;
@@ -20,9 +18,21 @@ const TERMINAL_STATUSES = [
     "Wrong Number", "Not Interested", "Rejected", "Disqualified", "Hired Elsewhere"
 ];
 
-// --- 1. THE DEALER ENGINE (NEW DISTRIBUTION LOGIC) ---
-async function runLeadDistribution(isManual = false) {
-    console.log(`Starting 'THE DEALER' Engine (${isManual ? 'Manual' : 'Scheduled'})...`);
+// --- UTILS ---
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+/**
+ * PHASE 1 & 2: THE DEALER ENGINE V2
+ * Transactional, Strict Quotas, and Correct Subcollection Pathing
+ */
+async function runLeadDistribution(forceRotate = false) {
+    console.log(`Starting 'THE DEALER' Engine V2 (Force Rotate: ${forceRotate})...`);
     const logs = [];
 
     try {
@@ -30,165 +40,212 @@ async function runLeadDistribution(isManual = false) {
         const companiesSnap = await db.collection("companies").where("isActive", "==", true).get();
         if (companiesSnap.empty) return { success: false, message: "No active companies found." };
 
-        // 2. Randomize Company Order
-        const companies = companiesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-                                            .sort(() => Math.random() - 0.5);
-
-        logs.push(`Found ${companies.length} active companies.`);
+        // 2. Randomize Company Order (Fairness)
+        const companies = shuffleArray(companiesSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        logs.push(`Processing ${companies.length} active companies.`);
 
         // 3. THE DEALER LOOP
         for (const company of companies) {
             try {
-                // --- QUOTA LOGIC FIX ---
-                // 1. Determine Base Plan (Free vs Paid)
-                const isPaid = company.planType && company.planType.toLowerCase() === 'paid';
-                let limit = isPaid ? QUOTA_PAID : QUOTA_FREE;
+                // Determine Quota based on plan
+                const isPaid = company.planType?.toLowerCase() === 'paid';
+                let limit = company.dailyLeadQuota || (isPaid ? QUOTA_PAID : QUOTA_FREE);
 
-                // 2. Check for Manual Override (Only if explicitly HIGHER than plan)
-                // This prevents the default '50' from the repair tool from downgrading a Paid plan.
-                if (company.dailyLeadQuota && company.dailyLeadQuota > limit) {
-                    limit = company.dailyLeadQuota;
-                }
-
-                // Run the Deal
-                const result = await dealLeadsToCompany(company, limit);
+                // Run Maintenance (Cleanup) + The Deal
+                const result = await dealLeadsToCompany(company, limit, forceRotate);
                 logs.push(result);
             } catch (err) {
-                console.error(`CRITICAL DEALER ERROR for ${company.companyName}:`, err);
-                logs.push(`${company.companyName}: SYSTEM ERROR - ${err.message}`);
+                console.error(`DEALER ERROR for ${company.companyName}:`, err);
+                logs.push(`${company.companyName}: ERROR - ${err.message}`);
             }
         }
 
         return { success: true, message: "Dealer Run Complete", details: logs };
 
     } catch (globalError) {
-        console.error("FATAL DISTRIBUTION ERROR:", globalError);
+        console.error("FATAL DISTRIBUTION SYSTEM FAILURE:", globalError);
         throw globalError;
     }
 }
 
-// --- 2. DEALER LOGIC (Per Company) ---
-async function dealLeadsToCompany(company, planLimit) {
+/**
+ * DEALER LOGIC (Per Company)
+ * Includes Phase 1 (Maintenance) and Phase 2 (Transactional Deal)
+ */
+async function dealLeadsToCompany(company, planLimit, forceRotate) {
     const companyId = company.id;
+    const now = new Date();
+    const nowTs = admin.firestore.Timestamp.now();
 
-    // A. Count Current Working Leads
-    // Only count "Active" platform leads. 
-    const activeSnap = await db.collection("companies", companyId, "leads")
-        .where("isPlatformLead", "==", true)
-        .where("status", "in", ["New Lead", "Attempted", "Contacted", "In Progress"])
-        .count()
-        .get();
+    // STEP 1: MAINTENANCE CLEANUP (Preserved Logic)
+    // We clean up terminal and expired leads before counting what the company needs.
+    const activeWorkingCount = await processCompanyCleanup(companyId, now, forceRotate);
 
-    const currentCount = activeSnap.data().count;
-    const needed = Math.max(0, planLimit - currentCount);
+    // STEP 2: CALCULATE NEED
+    const needed = Math.max(0, planLimit - activeWorkingCount);
 
     if (needed <= 0) {
-        return `${company.companyName}: Full (${currentCount}/${planLimit})`;
+        return `${company.companyName}: Full (${activeWorkingCount}/${planLimit})`;
     }
 
-    // B. Fetch Candidates from Global Pool
-    // Buffer: Ask for 1.5x what we need to account for potential Ghost Leads
-    const buffer = Math.ceil(needed * 1.5); 
-    const now = admin.firestore.Timestamp.now();
+    // STEP 3: FETCH CANDIDATES FROM GLOBAL POOL
+    const buffer = Math.ceil(needed * 1.5); // Request more to skip Ghost Leads
     let candidates = [];
 
-    // Priority 1: Fresh Leads (unavailableUntil == null)
+    // Priority 1: Fresh Leads
     const freshSnap = await db.collection("leads")
         .where("unavailableUntil", "==", null)
         .limit(buffer)
         .get();
     freshSnap.forEach(doc => candidates.push(doc));
 
-    // Priority 2: Recycled Leads (unavailableUntil <= now)
+    // Priority 2: Recycled Leads
     if (candidates.length < buffer) {
         const remaining = buffer - candidates.length;
         const expiredSnap = await db.collection("leads")
-            .where("unavailableUntil", "<=", now)
+            .where("unavailableUntil", "<=", nowTs)
             .limit(remaining)
             .get();
         expiredSnap.forEach(doc => candidates.push(doc));
     }
 
-    // Shuffle Candidates
-    candidates = candidates.sort(() => Math.random() - 0.5);
+    // Shuffle Candidates for randomness
+    candidates = shuffleArray(candidates);
 
-    // C. Assign Leads (Transactional Loop)
+    // STEP 4: TRANSACTIONAL ASSIGNMENT (THE GHOST BUSTER)
     let added = 0;
-
     for (const leadDoc of candidates) {
-        if (added >= needed) break; // Stop exactly when quota is met
+        if (added >= needed) break;
 
-        const success = await assignLeadTransaction(companyId, leadDoc);
-        if (success) {
-            added++;
-        }
-        // If false (Ghost Lead), we simply continue to the next candidate
+        // Verify existence and assign in a single transaction
+        const success = await assignLeadTransaction(companyId, leadDoc, nowTs);
+        if (success) added++;
     }
 
-    return `${company.companyName}: Active ${currentCount}, Added ${added} (Target: ${planLimit})`;
+    return `${company.companyName}: Active ${activeWorkingCount}, Added ${added} (Target: ${planLimit})`;
 }
 
-// --- 3. TRANSACTIONAL ASSIGNMENT (Ghost Buster) ---
-async function assignLeadTransaction(companyId, leadDocRef) {
+/**
+ * TRANSACTIONAL ASSIGNMENT
+ * Verifies document existence (Clean Room) and sets correct pathing.
+ */
+async function assignLeadTransaction(companyId, leadDocRef, nowTs) {
     try {
         await db.runTransaction(async (t) => {
-            // 1. "Clean Room" Check
+            // 1. Verify existence
             const freshDoc = await t.get(leadDocRef.ref);
-            if (!freshDoc.exists) throw new Error("GHOST_LEAD"); 
+            if (!freshDoc.exists) throw new Error("GHOST_LEAD");
 
             const data = freshDoc.data();
-
-            // 2. Anti-Snipe Check
+            
+            // 2. Double-Check Lock
             if (data.unavailableUntil && data.unavailableUntil.toMillis() > Date.now()) {
-                throw new Error("SNIPED"); 
+                throw new Error("ALREADY_LOCKED");
             }
 
-            // 3. Prepare Data
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1); // 24h Lock
+            // 3. Set Lock (24h)
+            const lockUntil = new Date();
+            lockUntil.setHours(lockUntil.getHours() + 24);
 
-            const companyLeadRef = db.collection("companies", companyId, "leads").doc(freshDoc.id);
-
-            const safePayload = {
-                firstName: data.firstName || "Unknown",
-                lastName: data.lastName || "Driver",
-                email: data.email || "",
-                phone: data.phone || "",
-                normalizedPhone: data.normalizedPhone || "",
-                city: data.city || "",
-                state: data.state || "",
-                driverType: data.driverType || "Unspecified",
-                experience: data.experience || "N/A",
-                source: "SafeHaul Pool",
-                // System Flags
+            // 4. Correct Subcollection Pathing
+            const companyLeadRef = db.collection("companies").doc(companyId).collection("leads").doc(freshDoc.id);
+            
+            const payload = {
+                firstName: data.firstName || 'Unknown',
+                lastName: data.lastName || 'Driver',
+                email: data.email || '',
+                phone: data.phone || '',
+                normalizedPhone: data.normalizedPhone || '',
+                driverType: data.driverType || 'Unspecified',
+                experience: data.experience || 'N/A',
+                city: data.city || '',
+                state: data.state || '',
+                source: data.source || 'SafeHaul Network',
+                sharedHistory: data.sharedHistory || [],
+                // Distribution Flags
                 isPlatformLead: true,
-                status: "New Lead",
+                distributedAt: nowTs,
                 originalLeadId: freshDoc.id,
-                distributedAt: admin.firestore.FieldValue.serverTimestamp(),
-                // Copy History
-                sharedHistory: data.sharedHistory || []
+                status: "New Lead",
+                assignedTo: null // Unassigned, visible to all recruiters in company
             };
 
-            // 4. COMMIT
-            t.set(companyLeadRef, safePayload);
+            t.set(companyLeadRef, payload);
             t.update(leadDocRef.ref, {
-                unavailableUntil: admin.firestore.Timestamp.fromDate(tomorrow),
+                unavailableUntil: admin.firestore.Timestamp.fromDate(lockUntil),
                 lastAssignedTo: companyId,
                 visitedCompanyIds: admin.firestore.FieldValue.arrayUnion(companyId)
             });
         });
-        return true; // Success
+        return true;
     } catch (e) {
-        if (e.message === "GHOST_LEAD") {
-            console.warn(`Cleaned up Ghost Lead index: ${leadDocRef.id}`);
-        }
-        return false; // Failed, try next
+        console.warn(`Dealer skipped lead ${leadDocRef.id}: ${e.message}`);
+        return false;
     }
 }
 
-// --- 4. CLEANUP LOGIC (PRESERVED) ---
+// --- PRESERVED MAINTENANCE LOGIC ---
+
+async function processCompanyCleanup(companyId, now, forceRotate) {
+    const companyLeadsRef = db.collection("companies").doc(companyId).collection("leads");
+    const currentLeadsSnap = await companyLeadsRef.where("isPlatformLead", "==", true).get();
+
+    let batch = db.batch();
+    let batchSize = 0;
+    let workingCount = 0;
+
+    for (const docSnap of currentLeadsSnap.docs) {
+        const data = docSnap.data();
+        let shouldDelete = false;
+
+        const status = data.status || "New Lead";
+        const isEngaged = ENGAGED_STATUSES.includes(status) && status !== "New Lead" && status !== "Attempted";
+        const isTerminal = TERMINAL_STATUSES.includes(status);
+
+        if (isTerminal) {
+            shouldDelete = true;
+        } else if (forceRotate && !isEngaged) {
+            shouldDelete = true;
+        } else if (data.distributedAt) {
+            const age = now.getTime() - data.distributedAt.toDate().getTime();
+            if (age > EXPIRY_LONG_MS) {
+                if (!["Hired", "Offer Accepted", "Approved"].includes(status)) shouldDelete = true;
+            } else if (age > EXPIRY_SHORT_MS && !isEngaged) {
+                shouldDelete = true;
+            }
+        } else {
+            shouldDelete = true; // No distribution date? Clean it.
+        }
+
+        if (shouldDelete) {
+            await harvestNotesBeforeDelete(docSnap, data);
+            batch.delete(docSnap.ref);
+            batchSize++;
+
+            if (data.originalLeadId && !isTerminal) {
+                batch.update(db.collection("leads").doc(data.originalLeadId), {
+                    unavailableUntil: null,
+                    lastAssignedTo: null
+                });
+            }
+        } else {
+            workingCount++;
+        }
+
+        if (batchSize >= 400) {
+            await batch.commit();
+            batch = db.batch();
+            batchSize = 0;
+        }
+    }
+
+    if (batchSize > 0) await batch.commit();
+    return workingCount;
+}
+
+// --- PRESERVED HELPER FUNCTIONS (Cleanup, Outcome, Driver Sync) ---
+
 async function runCleanup() {
-    console.log("Running Cleanup...");
     let deletedCount = 0;
     const leadsSnap = await db.collection("leads").get();
     let batch = db.batch();
@@ -205,10 +262,82 @@ async function runCleanup() {
         if (bSize >= 400) { await batch.commit(); batch = db.batch(); bSize = 0; }
     }
     if (bSize > 0) await batch.commit();
-    return { success: true, message: `Purged ${deletedCount} bad items from pool.` };
+    return { success: true, message: `Purged ${deletedCount} bad items.` };
 }
 
-// --- 5. DATA REPAIR (PRESERVED) ---
+async function harvestNotesBeforeDelete(docSnap, data) {
+    try {
+        const notesSnap = await docSnap.ref.collection("internal_notes").get();
+        const notesToShare = [];
+        notesSnap.forEach(noteDoc => {
+            const n = noteDoc.data();
+            notesToShare.push({ text: n.text, date: n.createdAt, source: "Previous Recruiter" });
+        });
+        const originalId = data.originalLeadId || docSnap.id;
+        if (originalId && notesToShare.length > 0) {
+            await db.collection("leads").doc(originalId).update({
+                sharedHistory: admin.firestore.FieldValue.arrayUnion(...notesToShare)
+            }).catch(() => {});
+        }
+    } catch (e) { console.warn(`Harvest failed for ${docSnap.id}`, e); }
+}
+
+async function processLeadOutcome(leadId, companyId, outcome) {
+    if (!leadId) return { error: "No Lead ID" };
+    const leadRef = db.collection("leads").doc(leadId);
+    const now = new Date();
+    let lockUntil = new Date();
+    let reason = "pool_recycle";
+
+    if (outcome === 'hired_elsewhere' || outcome === 'hired' || outcome === 'Approved') {
+        lockUntil.setDate(now.getDate() + POOL_HIRED_LOCK_DAYS);
+        reason = "hired";
+    } else if (outcome === 'not_interested' || outcome === 'not_qualified' || outcome === 'Rejected' || outcome === 'wrong_number') {
+        lockUntil.setDate(now.getDate() + POOL_COOL_OFF_DAYS);
+        reason = "rejected";
+    } else {
+        return { message: "No pool action needed" };
+    }
+
+    await leadRef.update({
+        unavailableUntil: admin.firestore.Timestamp.fromDate(lockUntil),
+        lastOutcome: outcome,
+        lastOutcomeBy: companyId,
+        poolStatus: reason
+    });
+    return { success: true, mode: reason, lockedUntil: lockUntil };
+}
+
+async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
+    const companyQuery = await db.collection("companies").where("appSlug", "==", companyIdOrSlug).limit(1).get();
+    let companyId = companyQuery.empty ? companyIdOrSlug : companyQuery.docs[0].id;
+    const leadSnap = await db.collection("leads").doc(leadId).get();
+    if (!leadSnap.exists) return { success: false, error: "Lead not found." };
+
+    const lockDate = new Date();
+    lockDate.setDate(lockDate.getDate() + POOL_INTEREST_LOCK_DAYS);
+    const lockTs = admin.firestore.Timestamp.fromDate(lockDate);
+
+    const batch = db.batch();
+    batch.set(db.collection("companies").doc(companyId).collection("applications").doc(leadId), {
+        ...leadSnap.data(),
+        status: "New Application",
+        source: "Driver Interest Link",
+        isPlatformLead: true,
+        originalLeadId: leadId,
+        submittedAt: admin.firestore.Timestamp.now()
+    }, { merge: true });
+
+    batch.update(db.collection("leads").doc(leadId), {
+        unavailableUntil: lockTs,
+        lastAssignedTo: companyId,
+        poolStatus: "engaged_interest"
+    });
+
+    await batch.commit();
+    return { success: true };
+}
+
 async function populateLeadsFromDrivers() {
     console.log("Starting System Repair...");
     let deletedUsers = 0;
@@ -269,81 +398,6 @@ async function populateLeadsFromDrivers() {
     }
     await batch.commit();
     return { success: true, message: `Deleted ${deletedUsers} fake users. Added ${added} leads. Merged ${merged}.` };
-}
-
-// --- 6. HELPERS & OUTCOMES (PRESERVED) ---
-async function harvestNotesBeforeDelete(docSnap, data) {
-    try {
-        const notesSnap = await docSnap.ref.collection("internal_notes").get();
-        const notesToShare = [];
-        notesSnap.forEach(noteDoc => {
-            const n = noteDoc.data();
-            notesToShare.push({ text: n.text, date: n.createdAt, source: "Previous Recruiter" });
-        });
-        const originalId = data.originalLeadId || docSnap.id;
-        if (originalId && notesToShare.length > 0) {
-            await db.collection("leads").doc(originalId).update({
-                sharedHistory: admin.firestore.FieldValue.arrayUnion(...notesToShare)
-            }).catch(() => {});
-        }
-    } catch (e) { console.warn(`Harvest failed for ${docSnap.id}`, e); }
-}
-
-async function processLeadOutcome(leadId, companyId, outcome) {
-    if (!leadId) return { error: "No Lead ID" };
-    const leadRef = db.collection("leads").doc(leadId);
-    const now = new Date();
-    let lockUntil = new Date();
-    let reason = "pool_recycle";
-
-    if (outcome === 'hired_elsewhere' || outcome === 'hired' || outcome === 'Approved') {
-        lockUntil.setDate(now.getDate() + POOL_HIRED_LOCK_DAYS);
-        reason = "hired";
-    } else if (outcome === 'not_interested' || outcome === 'not_qualified' || outcome === 'Rejected' || outcome === 'wrong_number') {
-        lockUntil.setDate(now.getDate() + POOL_COOL_OFF_DAYS);
-        reason = "rejected";
-    } else {
-        return { message: "No pool action needed" };
-    }
-
-    await leadRef.update({
-        unavailableUntil: admin.firestore.Timestamp.fromDate(lockUntil),
-        lastOutcome: outcome,
-        lastOutcomeBy: companyId,
-        poolStatus: reason
-    });
-    return { success: true, mode: reason, lockedUntil: lockUntil };
-}
-
-async function confirmDriverInterest(leadId, companyIdOrSlug, recruiterId) {
-    const companyQuery = await db.collection("companies").where("appSlug", "==", companyIdOrSlug).limit(1).get();
-    let companyId = companyQuery.empty ? companyIdOrSlug : companyQuery.docs[0].id;
-    const leadSnap = await db.collection("leads").doc(leadId).get();
-
-    if (!leadSnap.exists) return { success: false, error: "Lead not found." };
-
-    const lockDate = new Date();
-    lockDate.setDate(lockDate.getDate() + POOL_INTEREST_LOCK_DAYS);
-    const lockTs = admin.firestore.Timestamp.fromDate(lockDate);
-
-    const batch = db.batch();
-    batch.set(db.collection("companies").doc(companyId).collection("applications").doc(leadId), {
-        ...leadSnap.data(),
-        status: "New Application",
-        source: "Driver Interest Link",
-        isPlatformLead: true,
-        originalLeadId: leadId,
-        submittedAt: admin.firestore.Timestamp.now()
-    }, { merge: true });
-
-    batch.update(db.collection("leads").doc(leadId), {
-        unavailableUntil: lockTs,
-        lastAssignedTo: companyId,
-        poolStatus: "engaged_interest"
-    });
-
-    await batch.commit();
-    return { success: true };
 }
 
 async function generateDailyAnalytics() {
