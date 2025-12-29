@@ -16,6 +16,7 @@ const digitalSealing = require('./digitalSealing');
 const notifySigner = require('./notifySigner');
 const publicSigning = require('./publicSigning');
 const systemIntegrity = require('./systemIntegrity'); 
+const searchHandler = require('./searchHandler'); // <--- NEW IMPORT
 
 // --- EXPORTS ---
 
@@ -51,7 +52,8 @@ exports.confirmDriverInterest = leadDistribution.confirmDriverInterest;
 exports.runLeadDistribution = leadDistribution.runLeadDistribution;
 exports.distributeDailyLeads = leadDistribution.distributeDailyLeads; // Manual trigger
 exports.distributeDailyLeadsScheduled = leadDistribution.distributeDailyLeadsScheduled; // Scheduled
-exports.getLeadSupplyAnalytics = leadDistribution.getLeadSupplyAnalytics; // <--- NEW EXPORT
+exports.getLeadSupplyAnalytics = leadDistribution.getLeadSupplyAnalytics;
+exports.bulkAssignLeads = leadDistribution.bulkAssignLeads; // <--- Preserved from previous step
 
 // 6. System Integrity
 exports.syncSystemStructure = systemIntegrity.syncSystemStructure; 
@@ -59,7 +61,10 @@ exports.syncSystemStructure = systemIntegrity.syncSystemStructure;
 // 7. Data Migration
 exports.runMigration = companyAdmin.runMigration;
 
-// 8. Analytics (Commented out to prevent Gen 1 CPU errors)
+// 8. Global Search (NEW)
+exports.searchUnifiedData = searchHandler.searchUnifiedData; // <--- NEW EXPORT
+
+// 9. Analytics (Commented out to prevent Gen 1 CPU errors)
 /*
 exports.aggregateAnalytics = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
     const analytics = require('./leadDistribution');
