@@ -1,6 +1,7 @@
+// src/features/driver-app/components/application/PublicApplyHandler.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; 
+import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; // Changed addDoc to setDoc
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@lib/firebase';
 import { Loader2, AlertCircle, Building2 } from 'lucide-react';
@@ -22,9 +23,10 @@ export function PublicApplyHandler() {
   const [formData, setFormData] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState(null);
+
   const hasStarted = useRef(false);
 
-  // 1. Load Company Info from Slug (Preserved logic)
+  // 1. Load Company Info (Preserved Logic)
   useEffect(() => {
     if (hasStarted.current) return;
     hasStarted.current = true;
@@ -56,7 +58,7 @@ export function PublicApplyHandler() {
         }
 
         if (!companyData) {
-          setError("Company not found. Please check the link and try again.");
+          setError("Company not found.");
           setLoading(false);
           return;
         }
@@ -76,14 +78,13 @@ export function PublicApplyHandler() {
 
       } catch (err) {
         console.error("Error loading company:", err);
-        setError("Unable to load application. Please try again later.");
+        setError("Unable to load application.");
         setLoading(false);
       }
     }
     loadCompany();
   }, [slug, searchParams, setCurrentCompanyProfile]);
 
-  // 2. Form Handlers
   const handleUpdateFormData = (name, value) => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -116,34 +117,33 @@ export function PublicApplyHandler() {
 
   const handlePartialSubmit = () => {
       localStorage.setItem(`draft_${slug}`, JSON.stringify(formData));
-      showSuccess("Progress saved to this browser.");
+      showSuccess("Progress saved.");
   };
 
   const handleFinalSubmit = async () => {
-    // Validation
+    // 1. Validation
     if (!formData.signature || !formData.signature.startsWith('TEXT_SIGNATURE')) {
         alert("Please sign the application in the Review step.");
         return;
     }
 
-    // FIX: DUPLICATION PREVENTION (Guard against double-submitting)
+    // 2. DUPLICATION PREVENTION: Click Guard
     if (submissionStatus === 'submitting') return;
     setSubmissionStatus('submitting');
 
     try {
         const timestamp = serverTimestamp();
         const recruiterCode = sessionStorage.getItem('pending_application_recruiter');
-
-        // FIX: Capture prefill (leadId) to prevent duplication/Ghost leads
+        
+        // 3. DUPLICATION PREVENTION: Prefill detection
+        // Captures Lead ID to overwrite the lead instead of creating a duplicate application.
         const prefillLeadId = searchParams.get('prefill') || searchParams.get('leadId');
         const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        // --- CRITICAL FIX: Align with Firestore Rules (Preserved from old version) ---
+        // --- CRITICAL FIX: Align with Firestore Rules (PRESERVED) ---
         const applicationData = {
-            // Satisfy rules requiring 'applicantId'
-            applicantId: prefillLeadId || guestId,
+            applicantId: prefillLeadId || guestId, // Maps to Lead ID if available
 
-            // Satisfy rules requiring nested 'personalInfo' object
             personalInfo: {
                 firstName: formData.firstName || '',
                 lastName: formData.lastName || '',
@@ -151,7 +151,6 @@ export function PublicApplyHandler() {
                 phone: formData.phone || '',
             },
 
-            // Spread data for compatibility
             ...formData,
 
             companyId: company.id,
@@ -162,7 +161,7 @@ export function PublicApplyHandler() {
             status: 'New Application',
             submittedAt: timestamp,
             createdAt: timestamp,
-            // Ensure lists are arrays
+            
             employers: Array.isArray(formData.employers) ? formData.employers : [],
             violations: Array.isArray(formData.violations) ? formData.violations : [],
             accidents: Array.isArray(formData.accidents) ? formData.accidents : [],
@@ -170,9 +169,11 @@ export function PublicApplyHandler() {
             military: Array.isArray(formData.military) ? formData.military : []
         };
 
-        // FIX: Use setDoc with leadId to overwrite/merge instead of creating duplicates
+        // 4. DUPLICATION PREVENTION: Use deterministic doc ID
+        // This ensures the application merges with the lead record.
         const docId = prefillLeadId || guestId;
         const appRef = doc(db, "companies", company.id, "applications", docId);
+        
         await setDoc(appRef, applicationData, { merge: true });
 
         setSubmissionStatus('success');
@@ -182,11 +183,11 @@ export function PublicApplyHandler() {
     } catch (error) {
         console.error("Submission error:", error);
         setSubmissionStatus('error');
-        showError("Failed to submit application. Please try again.");
+        showError("Failed to submit application.");
     }
   };
 
-  // --- Render States ---
+  // --- Render States (Preserved) ---
   if (loading) return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
@@ -209,13 +210,8 @@ export function PublicApplyHandler() {
         <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md border border-green-100">
           <Building2 size={40} className="text-green-600 mx-auto mb-6" />
           <h2 className="text-2xl font-bold text-gray-900 mb-3">Application Submitted!</h2>
-          <p className="text-gray-600 mb-6">
-            Thank you for applying to <strong>{company.companyName}</strong>. 
-            A recruiter will contact you soon.
-          </p>
-          <button onClick={() => window.location.reload()} className="text-blue-600 hover:underline text-sm font-medium">
-            Start a new application
-          </button>
+          <p className="text-gray-600 mb-6">Thank you. A recruiter will contact you soon.</p>
+          <button onClick={() => navigate('/')} className="text-blue-600 hover:underline text-sm font-medium">Go to home</button>
         </div>
       </div>
   );
@@ -223,18 +219,8 @@ export function PublicApplyHandler() {
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
       <div className="bg-white border-b border-gray-200 sticky top-0 z-20 px-4 py-3 shadow-sm">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {company.logoUrl ? (
-              <img src={company.logoUrl} alt={company.companyName} className="h-8 w-auto" />
-            ) : (
-              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Building2 size={18} className="text-blue-600" />
-              </div>
-            )}
-            <span className="font-bold text-gray-900">{company.companyName}</span>
-          </div>
-          <div className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">Secure Application</div>
+        <div className="max-w-4xl mx-auto flex items-center justify-between font-bold">
+            {company.companyName}
         </div>
       </div>
 
