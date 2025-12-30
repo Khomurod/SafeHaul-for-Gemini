@@ -10,13 +10,14 @@ if (!admin.apps.length) {
 const driverSync = require('./driverSync');
 const hrAdmin = require('./hrAdmin');
 const companyAdmin = require('./companyAdmin');
-const leadLogic = require('./leadLogic'); // Keep for legacy if needed, or use leadDistribution
+const leadLogic = require('./leadLogic'); 
 const leadDistribution = require('./leadDistribution');
 const digitalSealing = require('./digitalSealing');
 const notifySigner = require('./notifySigner');
 const publicSigning = require('./publicSigning');
 const systemIntegrity = require('./systemIntegrity'); 
-const searchHandler = require('./searchHandler'); // <--- NEW IMPORT
+const searchHandler = require('./searchHandler');
+const compliance = require('./compliance'); // <--- NEW IMPORT
 
 // --- EXPORTS ---
 
@@ -30,17 +31,17 @@ exports.submitPublicEnvelope = publicSigning.submitPublicEnvelope;
 exports.createPortalUser = hrAdmin.createPortalUser;
 exports.deletePortalUser = hrAdmin.deletePortalUser;
 exports.updatePortalUser = hrAdmin.updatePortalUser;
-exports.onMembershipWrite = hrAdmin.onMembershipWrite; // Corrected source: hrAdmin
+exports.onMembershipWrite = hrAdmin.onMembershipWrite;
 
 // 3. Company Admin
 exports.getCompanyProfile = companyAdmin.getCompanyProfile;
-exports.joinCompanyTeam = hrAdmin.joinCompanyTeam; // Corrected source: hrAdmin
+exports.joinCompanyTeam = hrAdmin.joinCompanyTeam;
 exports.deleteCompany = companyAdmin.deleteCompany;
 exports.getTeamPerformanceHistory = companyAdmin.getTeamPerformanceHistory;
 
 // 4. Applications & Driver Sync
-exports.onApplicationSubmitted = driverSync.onApplicationSubmitted; // Corrected source: driverSync
-exports.onLeadSubmitted = driverSync.onLeadSubmitted; // Corrected source: driverSync
+exports.onApplicationSubmitted = driverSync.onApplicationSubmitted;
+exports.onLeadSubmitted = driverSync.onLeadSubmitted;
 exports.moveApplication = companyAdmin.moveApplication;
 exports.sendAutomatedEmail = companyAdmin.sendAutomatedEmail;
 
@@ -50,10 +51,10 @@ exports.handleLeadOutcome = leadDistribution.handleLeadOutcome;
 exports.migrateDriversToLeads = leadDistribution.migrateDriversToLeads;
 exports.confirmDriverInterest = leadDistribution.confirmDriverInterest;
 exports.runLeadDistribution = leadDistribution.runLeadDistribution;
-exports.distributeDailyLeads = leadDistribution.distributeDailyLeads; // Manual trigger
-exports.distributeDailyLeadsScheduled = leadDistribution.distributeDailyLeadsScheduled; // Scheduled
+exports.distributeDailyLeads = leadDistribution.distributeDailyLeads;
+exports.distributeDailyLeadsScheduled = leadDistribution.distributeDailyLeadsScheduled;
 exports.getLeadSupplyAnalytics = leadDistribution.getLeadSupplyAnalytics;
-exports.bulkAssignLeads = leadDistribution.bulkAssignLeads; // <--- Preserved from previous step
+exports.bulkAssignLeads = leadDistribution.bulkAssignLeads;
 
 // 6. System Integrity
 exports.syncSystemStructure = systemIntegrity.syncSystemStructure; 
@@ -61,10 +62,14 @@ exports.syncSystemStructure = systemIntegrity.syncSystemStructure;
 // 7. Data Migration
 exports.runMigration = companyAdmin.runMigration;
 
-// 8. Global Search (NEW)
-exports.searchUnifiedData = searchHandler.searchUnifiedData; // <--- NEW EXPORT
+// 8. Global Search
+exports.searchUnifiedData = searchHandler.searchUnifiedData;
 
-// 9. Analytics (Commented out to prevent Gen 1 CPU errors)
+// 9. Compliance & Verification (NEW)
+exports.sendVOERequest = compliance.sendVOERequest;             // <--- NEW EXPORT
+exports.checkDriverExpirations = compliance.checkDriverExpirations; // <--- NEW EXPORT
+
+// 10. Analytics (Commented out to prevent Gen 1 CPU errors)
 /*
 exports.aggregateAnalytics = functions.pubsub.schedule('every 24 hours').onRun(async (context) => {
     const analytics = require('./leadDistribution');
