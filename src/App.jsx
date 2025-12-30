@@ -18,8 +18,10 @@ const PublicApplyHandler = React.lazy(() => import('@features/driver-app/compone
 // --- NEW: INTEREST PAGE (DriverReach/Tenstreet Feature) ---
 const InterestPage = React.lazy(() => import('@features/driver-app/components/InterestPage').then(m => ({ default: m.InterestPage })));
 
-// --- DIGITAL SIGNATURE FEATURES ---
+// --- DIGITAL SIGNATURE & COMPLIANCE FEATURES ---
 const SigningRoom = React.lazy(() => import('@features/signing/SigningRoom'));
+// NEW: Verification Portal
+const VerificationRequest = React.lazy(() => import('@features/public/components/VerificationRequest').then(m => ({ default: m.VerificationRequest })));
 
 // NEW: The Documents Dashboard (Replaces CreateEnvelopePage)
 const DocumentsManager = React.lazy(() => import('@features/company-admin/views/DocumentsManager'));
@@ -29,11 +31,11 @@ function RootRedirect() {
   const { currentUser, userRole, loading } = useData();
   if (loading) return <GlobalLoadingState />;
   if (!currentUser) return <Navigate to="/login" />;
-
+  
   if (userRole === 'super_admin') return <Navigate to="/super-admin" />;
   if (userRole === 'admin') return <Navigate to="/company/dashboard" />;
   if (userRole === 'driver') return <Navigate to="/driver/dashboard" />;
-
+  
   return <GlobalLoadingState />;
 }
 
@@ -55,18 +57,19 @@ function AppRoutes() {
             {/* --- PUBLIC ROUTES (No Login Required) --- */}
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/join/:companyId" element={<TeamMemberSignup />} />
-
+            
             {/* Public Driver Routes */}
             <Route path="/apply/:slug" element={<PublicApplyHandler />} />
-
-            {/* FIX: New route for personalized recruiter invites */}
             <Route path="/interest/:slug" element={<InterestPage />} /> 
-
+            
             {/* Signing Room (Publicly Accessible via Token) */}
             <Route path="/sign/:companyId/:requestId" element={<SigningRoom />} />
+            
+            {/* Verification Portal (Public) */}
+            <Route path="/verify/:requestId" element={<VerificationRequest />} />
 
             {/* --- PROTECTED ROUTES (Login Required) --- */}
-
+            
             {/* Super Admin */}
             <Route path="/super-admin/*" element={
                 <ProtectedRoute allowedRoles={['super_admin']}>
@@ -80,14 +83,14 @@ function AppRoutes() {
                     {currentCompanyProfile ? <CompanyAdminDashboard /> : <div className="min-h-screen flex items-center justify-center">Please select a company.</div>}
                 </ProtectedRoute>
             } />
-
+            
             {/* Documents Center Hub */}
             <Route path="/company/documents" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                      <DocumentsManager />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/company/settings" element={
                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                     {currentCompanyProfile ? <CompanySettings /> : <Navigate to="/company/dashboard" />}
@@ -100,13 +103,13 @@ function AppRoutes() {
                     <DriverDashboard />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/driver/apply" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverApplicationWizard />
                 </ProtectedRoute>
             } />
-
+            
             <Route path="/driver/apply/:companyId" element={
                 <ProtectedRoute allowedRoles={['driver']}>
                     <DriverApplicationWizard />
