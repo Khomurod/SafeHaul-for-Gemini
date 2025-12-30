@@ -2,128 +2,147 @@ import React from 'react';
 import InputField from '@shared/components/form/InputField';
 import RadioGroup from '@shared/components/form/RadioGroup';
 import DynamicRow from '@shared/components/form/DynamicRow';
-import { useData } from '@/context/DataContext';
 import { YES_NO_OPTIONS } from '@/config/form-options';
+import { AlertCircle, Gavel } from 'lucide-react';
 
-const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNavigate }) => {
-    const { currentCompanyProfile } = useData();
-    const currentCompany = currentCompanyProfile;
-
-    // --- Configuration ---
-    // We keep this helper in case you need to re-enable other config fields later
-    const getConfig = (fieldId, defaultReq = true) => {
-        const config = currentCompany?.applicationConfig?.[fieldId];
-        return {
-            hidden: config?.hidden || false,
-            required: config !== undefined ? config.required : defaultReq
-        };
-    };
-
-    const yesNoOptions = YES_NO_OPTIONS;
+const Step4_Violations = ({ formData, updateFormData, onNavigate }) => {
+    
+    // Initial state for a single violation entry
     const initialViolation = { date: '', charge: '', location: '', penalty: '' };
 
     const handleContinue = () => {
         const form = document.getElementById('driver-form');
-        if (form) {
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
+        if (form && !form.checkValidity()) {
+            form.reportValidity();
+            return;
         }
         onNavigate('next');
     };
 
+    // Renders one Violation "Sub-Card"
     const renderViolationRow = (index, item, handleChange) => (
-        <div key={index} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InputField 
-                label="Date of Conviction" 
-                id={'violation-date-' + index} 
-                name="date" 
-                type="date"
-                value={item.date} 
-                onChange={handleChange}
-                required={true} 
-            />
-            <InputField 
-                label="Charge" 
-                id={'violation-charge-' + index} 
-                name="charge" 
-                value={item.charge} 
-                onChange={handleChange} 
-                required={true}
-            />
-            <InputField 
-                label="Location (City, State)" 
-                id={'violation-location-' + index} 
-                name="location" 
-                value={item.location} 
-                onChange={handleChange} 
-                className="sm:col-span-2"
-            />
-            <InputField 
-                label="Penalty" 
-                id={'violation-penalty-' + index} 
-                name="penalty" 
-                value={item.penalty} 
-                onChange={handleChange} 
-                className="sm:col-span-2"
-            />
+        <div key={index} className="p-4 mb-4 bg-gray-50 rounded-lg border border-gray-200 relative animate-in slide-in-from-bottom-2">
+            <div className="absolute top-2 right-2 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Violation #{index + 1}
+            </div>
+            
+            <div className="space-y-4 pt-2">
+                <InputField 
+                    label="Date of Conviction" 
+                    id={`viol-date-${index}`} 
+                    name="date" 
+                    type="date" 
+                    value={item.date} 
+                    onChange={handleChange} 
+                    required={true}
+                />
+                
+                <InputField 
+                    label="Offense / Charge" 
+                    id={`viol-charge-${index}`} 
+                    name="charge" 
+                    value={item.charge} 
+                    onChange={handleChange} 
+                    required={true}
+                    placeholder="e.g. Speeding 15+ over"
+                />
+                
+                <InputField 
+                    label="Location (City & State)" 
+                    id={`viol-loc-${index}`} 
+                    name="location" 
+                    value={item.location} 
+                    onChange={handleChange} 
+                    required={true}
+                    placeholder="e.g. Dallas, TX"
+                />
+                
+                <InputField 
+                    label="Penalty Type" 
+                    id={`viol-penalty-${index}`} 
+                    name="penalty" 
+                    value={item.penalty} 
+                    onChange={handleChange} 
+                    required={true}
+                    placeholder="e.g. Fine, Points, Warning"
+                />
+            </div>
         </div>
     );
 
     return (
-        <div id="page-4" className="form-step space-y-6">
-            <h3 className="text-xl font-semibold text-gray-800">Step 4 of 9: Motor Vehicle Record</h3>
+        <div id="page-4" className="space-y-8 animate-in fade-in duration-500">
+            
+            <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-gray-900">Driving Record</h3>
+                <p className="text-gray-600">
+                    List all traffic convictions and forfeitures for the past 3 years (other than parking violations).
+                </p>
+            </div>
 
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Consent & Revocations</legend>
-
-                <div className="space-y-2 pt-4 border-t border-gray-200">
-                    <label className="block text-sm font-medium text-gray-900">Motor Vehicle Record (MVR) Check</label>
-                    <p className="text-sm text-gray-600">This is required for employment. We will pull your driving record from all states where you have held a license in the past 3 years.</p>
-                    <RadioGroup 
-                        label="I Consent to MVR Check" 
-                        name="consent-mvr" 
-                        options={yesNoOptions}
-                        value={formData['consent-mvr']} 
-                        onChange={updateFormData}
-                        required={true}
-                    />
+            {/* CARD 1: LEGAL QUESTIONS */}
+            <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-2">
+                    <div className="p-2 bg-red-50 rounded-lg text-red-600">
+                        <Gavel size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Legal Disclosures</h4>
                 </div>
 
-                <RadioGroup 
-                    label="Has any license, permit or privilege ever been denied, suspended, or revoked for any reason?" 
-                    name="revoked-licenses" 
-                    options={yesNoOptions}
-                    value={formData['revoked-licenses']} 
-                    onChange={updateFormData}
-                    required={true}
-                />
+                <div className="space-y-6">
+                    <RadioGroup 
+                        label="Have you ever been denied a license, permit or privilege to operate a motor vehicle?" 
+                        name="revoked-licenses" 
+                        options={YES_NO_OPTIONS}
+                        value={formData['revoked-licenses']} 
+                        onChange={(name, value) => updateFormData(name, value)}
+                        required={true}
+                    />
 
-                <RadioGroup 
-                    label="Have you ever been convicted of driving during license suspension or revocation, or driving without a valid license or an expired license, or are any charges pending?" 
-                    name="driving-convictions" 
-                    options={yesNoOptions}
-                    value={formData['driving-convictions']} 
-                    onChange={updateFormData}
-                    required={true}
-                />
+                    <RadioGroup 
+                        label="Has any license, permit or privilege ever been suspended or revoked?" 
+                        name="driving-convictions" 
+                        options={YES_NO_OPTIONS}
+                        value={formData['driving-convictions']} 
+                        onChange={(name, value) => updateFormData(name, value)}
+                        required={true}
+                    />
 
-                <RadioGroup 
-                    label="Have you ever been convicted for any alcohol or controlled substance related offense while operating a motor vehicle, or are any charges pending?" 
-                    name="drug-alcohol-convictions" 
-                    options={yesNoOptions}
-                    value={formData['drug-alcohol-convictions']} 
-                    onChange={updateFormData}
-                    required={true}
-                />
+                    <RadioGroup 
+                        label="Have you ever been convicted of a felony?" 
+                        name="has-felony" 
+                        options={YES_NO_OPTIONS}
+                        value={formData['has-felony']} 
+                        onChange={(name, value) => updateFormData(name, value)}
+                        required={true}
+                        horizontal={false}
+                    />
 
-                {/* REMOVED: Upload Signed MVR Consent Form section */}
-            </fieldset>
+                    {formData['has-felony'] === 'yes' && (
+                        <div className="animate-in fade-in">
+                            <InputField 
+                                label="Please explain the felony conviction" 
+                                id="felonyExplanation" 
+                                name="felonyExplanation" 
+                                value={formData.felonyExplanation} 
+                                onChange={(name, value) => updateFormData(name, value)} 
+                                required={true}
+                            />
+                        </div>
+                    )}
+                </div>
+            </section>
 
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Moving Violations (Past 3 Years)</legend>
-                <p className="text-sm text-gray-600">Please list all moving violations or traffic convictions within the past 3 years (whether in a personal or commercial vehicle).</p>
+            {/* CARD 2: VIOLATIONS LIST */}
+            <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-2">
+                    <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
+                        <AlertCircle size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Traffic Violations</h4>
+                </div>
+
+                {/* Using DynamicRow with Custom "Sub-Card" Renderer */}
                 <DynamicRow
                     listKey="violations"
                     formData={formData}
@@ -131,21 +150,22 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
                     renderRow={renderViolationRow}
                     initialItemState={initialViolation}
                     addButtonLabel="+ Add Violation"
+                    emptyMessage="I certify that I have had no violations in the past 3 years."
                 />
-            </fieldset>
+            </section>
 
-            <div className="flex justify-between pt-6">
+            <div className="flex justify-between pt-8 pb-10">
                 <button 
                     type="button" 
                     onClick={() => onNavigate('back')}
-                    className="w-auto px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-200"
+                    className="px-8 py-4 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
                 >
                     Back
                 </button>
                 <button 
                     type="button" 
                     onClick={handleContinue}
-                    className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
+                    className="px-10 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all transform active:scale-95"
                 >
                     Continue
                 </button>
