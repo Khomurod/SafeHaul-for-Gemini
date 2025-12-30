@@ -14,7 +14,7 @@ import {
     renderAgreementHeader
 } from '@shared/utils/pdf/pdfSections';
 
-// --- LEGAL TEXT CONSTANTS (Preserved) ---
+// --- FULL LEGAL TEXT CONSTANTS (Preserved) ---
 
 const TEXT_ELECTRONIC_SIG = `AGREEMENT TO CONDUCT TRANSACTION ELECTRONICALLY
 
@@ -65,7 +65,7 @@ export function generateApplicationPDF(pdfData) {
         return;
     }
 
-    // Destructure
+    // Destructure with Safety Defaults
     const { applicant = {}, company = {} } = pdfData;
 
     // Fallbacks
@@ -140,7 +140,7 @@ export function generateApplicationPDF(pdfData) {
         
         pageY += (splitText.length * 5) + 15;
 
-        // Signature Block again for each agreement
+        // Signature Block again for each agreement (Critical for audit)
         renderSignatureBlock(doc, pageY, applicant);
     });
 
