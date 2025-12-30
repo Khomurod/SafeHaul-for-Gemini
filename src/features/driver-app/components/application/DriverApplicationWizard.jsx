@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
 import { db, storage } from '@lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, deleteDoc, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import Stepper from '@shared/components/layout/Stepper';
 import { Loader2 } from 'lucide-react';
@@ -135,9 +135,34 @@ export function DriverApplicationWizard() {
         const timestamp = serverTimestamp();
         const activeCompanyId = targetCompanyId;
 
+        // --- COMPLIANCE UPGRADE: Convert Strings to Timestamps ---
+        const toTimestamp = (dateStr) => {
+            if (!dateStr) return null;
+            const date = new Date(dateStr);
+            // Fix timezone offset issues by setting time to noon
+            date.setHours(12, 0, 0, 0); 
+            return isNaN(date.getTime()) ? null : Timestamp.fromDate(date);
+        };
+
+        const processedData = { ...formData };
+        const dateFields = [
+            'cdlExpiration', 
+            'medCardExpiration', 
+            'twicExpiration', 
+            'dob', 
+            'lastRelievedDate'
+        ];
+
+        dateFields.forEach(field => {
+            if (processedData[field]) {
+                processedData[field] = toTimestamp(processedData[field]);
+            }
+        });
+        // ---------------------------------------------------------
+
         // Prepare Payload
         const finalData = {
-            ...formData,
+            ...processedData,
             // FIX: Ensure signature format matches PDF generator expectation
             signature: `TEXT_SIGNATURE:${formData.signatureName}`,
             userId: currentUser.uid,
