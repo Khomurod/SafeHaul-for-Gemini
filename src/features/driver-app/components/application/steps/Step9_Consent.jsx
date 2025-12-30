@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-// FIX: Changed to relative path to ensure module loads correctly
-import { useApplicationSubmit } from '../../hooks/useApplicationSubmit';
+// FIX: Corrected relative path (needs 3 levels up to reach driver-app/hooks)
+import { useApplicationSubmit } from '../../../hooks/useApplicationSubmit';
 import { 
     FileSignature, 
     ChevronDown, 
@@ -30,15 +30,17 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPrev
     };
 
     const clearSignature = () => {
-        sigPad.current.clear();
+        if(sigPad.current) {
+            sigPad.current.clear();
+        }
         updateFormData('signature', null);
     };
 
     const handleSignature = () => {
         if (signatureType === 'draw') {
-            if (sigPad.current.isEmpty()) {
+            if (sigPad.current && sigPad.current.isEmpty()) {
                 updateFormData('signature', null);
-            } else {
+            } else if (sigPad.current) {
                 updateFormData('signature', sigPad.current.getTrimmedCanvas().toDataURL('image/png'));
             }
         } else {
@@ -58,16 +60,25 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPrev
             return;
         }
 
-        if (!formData.signature) {
+        // Slight delay to ensure state update if drawing just finished
+        if (!formData.signature && !typedName && (!sigPad.current || sigPad.current.isEmpty())) {
             alert("A digital signature is required to proceed.");
             return;
         }
 
+        // If drawing exists but not yet in formData, capture it now
+        let finalData = { ...formData };
+        if (signatureType === 'draw' && sigPad.current && !sigPad.current.isEmpty()) {
+             finalData.signature = sigPad.current.getTrimmedCanvas().toDataURL('image/png');
+        } else if (signatureType === 'type' && typedName) {
+             finalData.signature = `TEXT_SIGNATURE:${typedName}`;
+        }
+
         if (isPreview) {
             alert("Preview Mode: Application would be submitted now.");
-            onNavigate('next'); // Go to success page
+            onNavigate('next'); 
         } else {
-            const success = await submit(formData);
+            const success = await submit(finalData);
             if (success) {
                 onNavigate('next');
             }
@@ -97,7 +108,7 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPrev
                             type="checkbox" 
                             id={`agree-${id}`} 
                             required 
-                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                         />
                         <label htmlFor={`agree-${id}`} className="font-bold text-gray-900 cursor-pointer select-none">
                             I have read and agree to the terms above.
@@ -178,7 +189,7 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPrev
                         type="checkbox" 
                         id="agree-general" 
                         required 
-                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1 cursor-pointer"
                     />
                     <label htmlFor="agree-general" className="text-sm text-blue-900 cursor-pointer select-none leading-relaxed">
                         <strong>CERTIFICATION:</strong> I certify that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge. I authorize the carrier to make such investigations and inquiries of my personal, employment, financial or medical history and other related matters as may be necessary in arriving at an employment decision.
@@ -229,15 +240,13 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPrev
                             <div className="absolute bottom-2 left-0 w-full text-center pointer-events-none text-xs text-gray-400 font-bold uppercase tracking-widest">
                                 Sign Here
                             </div>
-                            {!sigPad.current.isEmpty?.() && (
-                                <button 
-                                    type="button" 
-                                    onClick={clearSignature}
-                                    className="absolute top-2 right-2 text-xs bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-100"
-                                >
-                                    Clear
-                                </button>
-                            )}
+                            <button 
+                                type="button" 
+                                onClick={clearSignature}
+                                className="absolute top-2 right-2 text-xs bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-100 z-10"
+                            >
+                                Clear
+                            </button>
                         </>
                     ) : (
                         <div className="h-40 flex items-center justify-center p-4">
@@ -246,7 +255,7 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPrev
                                 placeholder="Type your full legal name..."
                                 value={typedName}
                                 onChange={(e) => { setTypedName(e.target.value); handleSignature(); }}
-                                className="w-full text-center text-3xl font-serif italic border-none bg-transparent focus:ring-0 placeholder:text-gray-300 text-gray-800"
+                                className="w-full text-center text-3xl font-serif italic border-none bg-transparent focus:ring-0 placeholder:text-gray-300 text-gray-800 outline-none"
                                 style={{ fontFamily: '"Times New Roman", serif' }}
                             />
                         </div>
