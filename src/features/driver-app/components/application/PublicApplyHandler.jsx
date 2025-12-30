@@ -1,7 +1,7 @@
 // src/features/driver-app/components/application/PublicApplyHandler.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'; 
+import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore'; 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@lib/firebase';
 import { Loader2, AlertCircle, Building2 } from 'lucide-react';
@@ -141,6 +141,32 @@ export function PublicApplyHandler() {
         const prefillLeadId = searchParams.get('prefill') || searchParams.get('leadId');
         const guestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+        // --- COMPLIANCE UPGRADE: Convert Strings to Timestamps ---
+        const toTimestamp = (dateStr) => {
+            if (!dateStr) return null;
+            const date = new Date(dateStr);
+            // Fix timezone offset issues by setting time to noon
+            date.setHours(12, 0, 0, 0); 
+            return isNaN(date.getTime()) ? null : Timestamp.fromDate(date);
+        };
+
+        // Create a copy of formData with processed dates
+        const processedData = { ...formData };
+        const dateFields = [
+            'cdlExpiration', 
+            'medCardExpiration', 
+            'twicExpiration', 
+            'dob', 
+            'lastRelievedDate'
+        ];
+
+        dateFields.forEach(field => {
+            if (processedData[field]) {
+                processedData[field] = toTimestamp(processedData[field]);
+            }
+        });
+        // ---------------------------------------------------------
+
         // DATA PRESERVATION: Maintained 'personalInfo' nested object for Firestore Rules
         const applicationData = {
             applicantId: prefillLeadId || guestId,
@@ -150,7 +176,8 @@ export function PublicApplyHandler() {
                 email: formData.email || '',
                 phone: formData.phone || '',
             },
-            ...formData,
+            ...processedData, // Use the date-converted data
+            
             // FIX: Construct the signature field expected by the backend PDF generator
             signature: `TEXT_SIGNATURE:${formData.signatureName}`,
             
