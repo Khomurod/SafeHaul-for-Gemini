@@ -1,192 +1,290 @@
-import React from 'react';
-import AgreementBox from '@shared/components/form/AgreementBox';
-import InputField from '@shared/components/form/InputField'; // Kept for potential future use
-import { useData } from '@/context/DataContext';
-import { FileSignature, PenTool, CheckCircle } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
+import { 
+    useApplicationSubmit 
+} from '@features/driver-app/hooks/useApplicationSubmit';
+import { 
+    FileSignature, 
+    ChevronDown, 
+    ChevronUp, 
+    CheckCircle2, 
+    AlertTriangle,
+    Loader2
+} from 'lucide-react';
 
-const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit, handleFileUpload }) => {
-    const { currentCompanyProfile } = useData();
-    const currentCompany = currentCompanyProfile;
+const Step9_Consent = ({ formData, updateFormData, onNavigate, companyId, isPreview }) => {
+    const sigPad = useRef({});
+    const [signatureType, setSignatureType] = useState('draw'); // 'draw' or 'type'
+    const [typedName, setTypedName] = useState('');
+    const { submit, isSubmitting, error } = useApplicationSubmit(companyId);
+    
+    // State for expanding legal text accordions
+    const [expanded, setExpanded] = useState({
+        electronic: false,
+        fcra: false,
+        psp: false,
+        clearinghouse: false
+    });
 
-    const isFinalCertified = formData['final-certification'] === 'agreed';
-    const signatureName = formData['signatureName'] || '';
-
-    const handleFinalCertificationChange = (e) => {
-        updateFormData('final-certification', e.target.checked ? 'agreed' : '');
+    const toggleExpand = (key) => {
+        setExpanded(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
-    // Helper kept in case you add uploads back later, though currently unused in this version
-    const onFileChange = (name, file) => {
-        if (handleFileUpload) {
-            handleFileUpload(name, file);
+    const clearSignature = () => {
+        sigPad.current.clear();
+        updateFormData('signature', null);
+    };
+
+    const handleSignature = () => {
+        if (signatureType === 'draw') {
+            if (sigPad.current.isEmpty()) {
+                updateFormData('signature', null);
+            } else {
+                updateFormData('signature', sigPad.current.getTrimmedCanvas().toDataURL('image/png'));
+            }
+        } else {
+            // Typed signature is stored as a special string
+            updateFormData('signature', typedName ? `TEXT_SIGNATURE:${typedName}` : null);
         }
     };
 
+    const handleSubmit = async () => {
+        // Final capture before submit
+        handleSignature();
+
+        const form = document.getElementById('driver-form');
+        if (form && !form.checkValidity()) {
+            form.reportValidity();
+            alert("Please agree to all required consents before submitting.");
+            return;
+        }
+
+        if (!formData.signature) {
+            alert("A digital signature is required to proceed.");
+            return;
+        }
+
+        if (isPreview) {
+            alert("Preview Mode: Application would be submitted now.");
+            onNavigate('next'); // Go to success page
+        } else {
+            const success = await submit(formData);
+            if (success) {
+                onNavigate('next');
+            }
+        }
+    };
+
+    // Reusable Accordion Component for Legal Text
+    const LegalAccordion = ({ title, id, children, isOpen, onToggle }) => (
+        <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            <button
+                type="button"
+                onClick={onToggle}
+                className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+            >
+                <div className="flex items-center gap-2">
+                    <FileSignature size={18} className="text-blue-600" />
+                    <span className="font-bold text-gray-800 text-sm uppercase text-left">{title}</span>
+                </div>
+                {isOpen ? <ChevronUp size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}
+            </button>
+            
+            {isOpen && (
+                <div className="p-5 text-sm text-gray-600 space-y-4 border-t border-gray-100 animate-in slide-in-from-top-1">
+                    {children}
+                    <div className="flex items-center gap-2 pt-4 border-t border-gray-100">
+                         <input 
+                            type="checkbox" 
+                            id={`agree-${id}`} 
+                            required 
+                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <label htmlFor={`agree-${id}`} className="font-bold text-gray-900 cursor-pointer select-none">
+                            I have read and agree to the terms above.
+                        </label>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
     return (
-        <div id="page-9" className="form-step space-y-6">
-            {/* Load a cursive font for the signature preview */}
-            <style>
-                {`@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');`}
-            </style>
+        <div id="page-consent" className="space-y-8 animate-in fade-in duration-500">
+            
+            <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-gray-900">Legal Consent & Signature</h3>
+                <p className="text-gray-600">
+                    Please review and agree to the following required disclosures to complete your application.
+                </p>
+            </div>
 
-            <h3 className="text-xl font-semibold text-gray-800">Step 9 of 9: Agreements & Signature</h3>
+            {error && (
+                <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-2 animate-in shake">
+                    <AlertTriangle size={20} />
+                    <span>{error}</span>
+                </div>
+            )}
 
-            {/* 1. Electronic Transaction Agreement */}
-            <AgreementBox
-                contentId="Agreement to Conduct Transaction Electronically"
-                companyData={currentCompany}
-                formData={formData}
-                updateFormData={updateFormData}
-                checkboxName="agree-electronic"
-                checkboxLabel="I Agree"
-                checkboxDescription="I have read, understood, and agree to the terms of transacting electronically."
-                required={true}
-            >
-                <p>This electronic transaction service is provided on behalf of <strong className="company-name-placeholder">{currentCompany?.companyName || 'The Company'}</strong> (the "Employer").
-                The Employer is requesting that we - SafeHaul - provide legal documents, notices, and disclosures electronically and that we obtain your signature to legal agreements, authorizations, and other documents electronically.</p>
-                <h4>Scope of Agreement</h4>
-                <p>You are agreeing to receive notices electronically, authorize background checks, and provide electronic signatures in lieu of wet ink signatures.</p>
-            </AgreementBox>
+            {/* LEGAL AGREEMENTS (Accordions) */}
+            <div className="space-y-4">
+                
+                {/* 1. Electronic Signature */}
+                <LegalAccordion 
+                    title="Agreement to Conduct Transaction Electronically" 
+                    id="electronic"
+                    isOpen={expanded.electronic}
+                    onToggle={() => toggleExpand('electronic')}
+                >
+                    <p><strong>1. DEFINITIONS.</strong> "We," "Us," and "Company" refer to the motor carrier to which you are applying. "You" and "Your" refer to the applicant. "Communication" means any application forms, disclosures, notices, responses, agreements, and other documents related to your application for employment.</p>
+                    <p><strong>2. SCOPE.</strong> You agree that we may provide you with any Communications in electronic format, and that we may discontinue sending paper Communications to you. You agree that your electronic signature has the same legal effect as a manual signature.</p>
+                    <p><strong>3. CONSENT.</strong> By signing this application electronically, you consent to receive and respond to Communications in electronic format.</p>
+                </LegalAccordion>
 
-            {/* 2. Background Check Disclosure */}
-            <AgreementBox
-                contentId="Background Check Disclosure"
-                companyData={currentCompany}
-                formData={formData}
-                updateFormData={updateFormData}
-                checkboxName="agree-background-check"
-                checkboxLabel="I Acknowledge and Authorize"
-                checkboxDescription="I have read, understood, and agree to the Background Check Disclosure."
-                required={true}
-            >
-                <p>In connection with your application for employment with <strong className="company-name-placeholder">{currentCompany?.companyName || 'The Company'}</strong>, a consumer report and/or investigative consumer report may be requested about you for employment purposes.</p>
-                <p>These reports may include criminal history, driving records, and employment history.</p>
-            </AgreementBox>
+                {/* 2. FCRA */}
+                <LegalAccordion 
+                    title="Background Check Disclosure (FCRA)" 
+                    id="fcra"
+                    isOpen={expanded.fcra}
+                    onToggle={() => toggleExpand('fcra')}
+                >
+                    <p>In connection with your application for employment, Prospective Employer may obtain one or more reports regarding your credit, driving, and/or criminal background history from a consumer reporting agency.</p>
+                    <p><strong>AUTHORIZATION:</strong> I hereby authorize Prospective Employer to obtain the consumer reports described above about me.</p>
+                </LegalAccordion>
 
-            {/* 3. FMCSA PSP Authorization */}
-            <AgreementBox
-                contentId="FMCSA PSP Authorization"
-                companyData={currentCompany}
-                formData={formData}
-                updateFormData={updateFormData}
-                checkboxName="agree-psp"
-                checkboxLabel="I Authorize PSP Check"
-                checkboxDescription="I have read, understood, and agree to the PSP Disclosure and Authorization."
-                required={true}
-            >
-                <p>I authorize <strong className="company-name-placeholder">{currentCompany?.companyName || 'The Company'}</strong> to access the FMCSA Pre-Employment Screening Program (PSP) system to seek information regarding my commercial driving safety record.</p>
-            </AgreementBox>
+                {/* 3. PSP */}
+                <LegalAccordion 
+                    title="FMCSA PSP Disclosure" 
+                    id="psp"
+                    isOpen={expanded.psp}
+                    onToggle={() => toggleExpand('psp')}
+                >
+                    <p>You understand that Prospective Employer may obtain one or more reports regarding your driving, and safety inspection history from the Federal Motor Carrier Safety Administration (FMCSA) Pre-Employment Screening Program (PSP).</p>
+                    <p><strong>AUTHORIZATION:</strong> I hereby authorize Prospective Employer to access the FMCSA PSP system to seek information regarding my commercial driving safety record.</p>
+                </LegalAccordion>
 
-            {/* 4. Drug & Alcohol Clearinghouse */}
-            <AgreementBox
-                contentId="Drug & Alcohol Clearinghouse"
-                companyData={currentCompany}
-                formData={formData}
-                updateFormData={updateFormData}
-                checkboxName="agree-clearinghouse"
-                checkboxLabel="I Provide Consent"
-                checkboxDescription="I have read, understood, and provide consent for the Clearinghouse limited query."
-                required={true}
-            >
-                <h4>General Consent for Limited Queries</h4>
-                <p>I hereby provide consent to <strong className="company-name-placeholder">{currentCompany?.companyName || 'The Company'}</strong> to conduct a limited query of the FMCSA Commercial Driver's License Drug and Alcohol Clearinghouse.</p>
+                 {/* 4. Clearinghouse */}
+                 <LegalAccordion 
+                    title="Drug & Alcohol Clearinghouse Consent" 
+                    id="clearinghouse"
+                    isOpen={expanded.clearinghouse}
+                    onToggle={() => toggleExpand('clearinghouse')}
+                >
+                    <p>I hereby provide consent to Prospective Employer to conduct a full query of the FMCSA Commercial Driver's License Drug and Alcohol Clearinghouse to determine whether drug or alcohol violation information about me exists.</p>
+                </LegalAccordion>
 
-                {/* REMOVED: Upload Drug Test Consent Form (Optional) section */}
-            </AgreementBox>
+                {/* 5. General Certification */}
+                 <div className="bg-blue-50 p-5 rounded-xl border border-blue-100 flex items-start gap-3">
+                    <input 
+                        type="checkbox" 
+                        id="agree-general" 
+                        required 
+                        className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1"
+                    />
+                    <label htmlFor="agree-general" className="text-sm text-blue-900 cursor-pointer select-none leading-relaxed">
+                        <strong>CERTIFICATION:</strong> I certify that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge. I authorize the carrier to make such investigations and inquiries of my personal, employment, financial or medical history and other related matters as may be necessary in arriving at an employment decision.
+                    </label>
+                </div>
+            </div>
 
-            {/* 5. Final Certification & E-Signature */}
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6 bg-white">
-                <legend className="text-lg font-semibold text-gray-800 px-2 flex items-center gap-2">
-                    <FileSignature size={20} className="text-blue-600"/> Final Certification & Signature
-                </legend>
-
-                <div className="bg-gray-50 p-4 rounded text-sm text-gray-700 leading-relaxed border border-gray-200">
-                    <p className="mb-2">I certify that I have read and understood all of the employment application.
-                    I certify that I completed this application and that all of the information I supply is a full and complete statement of facts.</p>
-                    <p>It is understood that if any falsification is discovered, it will constitute grounds for rejection of application or dismissal from employment.</p>
+            {/* DIGITAL SIGNATURE BOX */}
+            <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center justify-between border-b border-gray-100 pb-4 mb-2">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+                            <FileSignature size={20} />
+                        </div>
+                        <h4 className="text-lg font-bold text-gray-900">Digital Signature</h4>
+                    </div>
+                    <div className="text-sm text-gray-500 font-medium bg-gray-50 px-3 py-1 rounded-lg border border-gray-200">
+                        Date: {new Date().toLocaleDateString()}
+                    </div>
                 </div>
 
-                {/* --- TYPED SIGNATURE SECTION --- */}
-                <div className="pt-4 border-t border-gray-200 space-y-4">
+                {/* Signature Type Toggle */}
+                <div className="flex bg-gray-100 p-1 rounded-lg w-full sm:w-auto self-start">
+                    <button
+                        type="button"
+                        onClick={() => setSignatureType('draw')}
+                        className={`flex-1 sm:flex-none px-4 py-2 text-sm font-bold rounded-md transition-all ${signatureType === 'draw' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Draw Signature
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setSignatureType('type')}
+                        className={`flex-1 sm:flex-none px-4 py-2 text-sm font-bold rounded-md transition-all ${signatureType === 'type' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        Type Signature
+                    </button>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1" htmlFor="signatureName">
-                                Electronic Signature (Type Full Name) <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <PenTool className="text-gray-400" size={16} />
-                                </div>
-                                <input
-                                    type="text"
-                                    id="signatureName"
-                                    name="signatureName"
-                                    value={signatureName}
-                                    onChange={(e) => updateFormData('signatureName', e.target.value)}
-                                    placeholder="e.g. John Doe"
-                                    className="w-full pl-10 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
-                                />
+                <div className="border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 relative" onTouchStart={(e) => e.stopPropagation()}>
+                    {signatureType === 'draw' ? (
+                        <>
+                            <SignatureCanvas 
+                                ref={sigPad} 
+                                canvasProps={{ className: 'w-full h-40 rounded-xl' }}
+                                onEnd={handleSignature} 
+                            />
+                            <div className="absolute bottom-2 left-0 w-full text-center pointer-events-none text-xs text-gray-400 font-bold uppercase tracking-widest">
+                                Sign Here
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                                By typing your name, you agree that this valid as your handwritten signature.
-                            </p>
-                        </div>
-
-                        {/* Signature Preview */}
-                        <div className="bg-white border-2 border-dashed border-blue-200 rounded-lg flex flex-col justify-center items-center p-4 min-h-[100px]">
-                            {signatureName ? (
-                                <p className="text-3xl text-blue-800 transform -rotate-2" style={{ fontFamily: "'Dancing Script', cursive" }}>
-                                    {signatureName}
-                                </p>
-                            ) : (
-                                <p className="text-gray-300 text-sm italic">Signature Preview</p>
+                            {!sigPad.current.isEmpty?.() && (
+                                <button 
+                                    type="button" 
+                                    onClick={clearSignature}
+                                    className="absolute top-2 right-2 text-xs bg-white border border-gray-200 text-gray-500 px-2 py-1 rounded hover:bg-gray-100"
+                                >
+                                    Clear
+                                </button>
                             )}
-                        </div>
-                    </div>
-
-                    {/* Final Checkbox */}
-                    <div className="flex items-start p-4 bg-blue-50/50 border border-blue-100 rounded-lg mt-4">
-                        <div className="flex-shrink-0">
-                            <input 
-                                id="final-certification" 
-                                name="final-certification" 
-                                type="checkbox" 
-                                checked={isFinalCertified}
-                                onChange={handleFinalCertificationChange}
-                                value="agreed" 
-                                required 
-                                className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5"
+                        </>
+                    ) : (
+                        <div className="h-40 flex items-center justify-center p-4">
+                             <input
+                                type="text"
+                                placeholder="Type your full legal name..."
+                                value={typedName}
+                                onChange={(e) => { setTypedName(e.target.value); handleSignature(); }}
+                                className="w-full text-center text-3xl font-serif italic border-none bg-transparent focus:ring-0 placeholder:text-gray-300 text-gray-800"
+                                style={{ fontFamily: '"Times New Roman", serif' }}
                             />
                         </div>
-                        <div className="ml-3 text-sm">
-                            <label htmlFor="final-certification" className="font-bold text-gray-800 cursor-pointer">
-                                I Certify and Agree
-                            </label>
-                            <p className="text-gray-600 mt-1">
-                                This certifies that I completed this application, and that all entries on it and information in it are true and complete to the best of my knowledge. I agree to sign this application electronically.
-                            </p>
-                        </div>
-                    </div>
+                    )}
                 </div>
-            </fieldset>
+                <p className="text-xs text-gray-500 text-center">
+                    By providing your signature, you agree that it is the legally binding equivalent of your handwritten signature.
+                </p>
+            </section>
 
-            <div className="flex justify-between pt-6">
+            {/* SUBMIT BUTTON */}
+            <div className="flex justify-between pt-8 pb-10">
                 <button 
                     type="button" 
-                    onClick={() => onNavigate('back')} 
-                    className="w-auto px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700"
+                    onClick={() => onNavigate('back')}
+                    className="px-8 py-4 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                    disabled={isSubmitting}
                 >
                     Back
                 </button>
                 <button 
-                    type="submit" 
-                    name="submit-full" 
-                    onClick={onFinalSubmit}
-                    disabled={!isFinalCertified || !signatureName.trim()}
-                    className="w-auto px-6 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    type="button" 
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="px-10 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all transform active:scale-95 flex items-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                    <CheckCircle size={18} /> Submit Full Application
+                    {isSubmitting ? (
+                        <>
+                            <Loader2 size={24} className="animate-spin" />
+                            Submitting...
+                        </>
+                    ) : (
+                        <>
+                            <CheckCircle2 size={24} />
+                            Submit Application
+                        </>
+                    )}
                 </button>
             </div>
         </div>
