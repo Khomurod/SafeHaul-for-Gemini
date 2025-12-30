@@ -5,12 +5,12 @@ import DynamicRow from '@shared/components/form/DynamicRow';
 import { useUtils } from '@shared/hooks/useUtils';
 import { useData } from '@/context/DataContext';
 import { YES_NO_OPTIONS, MILITARY_BRANCH_OPTIONS } from '@/config/form-options';
+import { Truck, Calendar, Building, Mail, AlertCircle, BookOpen, Flag } from 'lucide-react';
 
 const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
     const { states } = useUtils();
     const { currentCompanyProfile } = useData();
     const currentCompany = currentCompanyProfile;
-    const yesNoOptions = YES_NO_OPTIONS;
 
     // --- Configuration ---
     const getConfig = (fieldId, defaultReq = true) => {
@@ -23,20 +23,11 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
 
     const empHistoryConfig = getConfig('employmentHistory', true);
 
-    // FIX: Added 'contactPerson', 'email', 'fax' for VOE Automation
+    // Initial States
     const initialEmployer = { 
-        name: '', 
-        street: '', 
-        city: '', 
-        state: '', 
-        zip: '', 
-        phone: '', 
-        fax: '', 
-        email: '', 
-        contactPerson: '', 
-        position: '', 
-        dates: '', 
-        reason: '' 
+        name: '', street: '', city: '', state: '', zip: '', 
+        phone: '', fax: '', email: '', contactPerson: '', 
+        position: '', dates: '', reason: '' 
     };
     
     const initialSchool = { name: '', dates: '', location: '' };
@@ -45,23 +36,28 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
 
     const handleContinue = () => {
         const form = document.getElementById('driver-form');
-        if (form) {
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
+        if (form && !form.checkValidity()) {
+            form.reportValidity();
+            return;
         }
         onNavigate('next');
     };
 
+    // --- RENDERERS ---
+
     const renderEmployerRow = (index, item, handleChange) => (
-        <div key={index} className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200 relative">
-            <div className="absolute top-2 right-2 text-xs text-gray-400 font-bold uppercase tracking-wider">
+        <div key={index} className="p-5 mb-6 bg-white rounded-xl border border-gray-200 shadow-sm relative animate-in slide-in-from-bottom-2">
+            <div className="absolute top-0 right-0 bg-gray-100 px-3 py-1 rounded-bl-xl text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Employer #{index + 1}
             </div>
 
             {/* 1. Company Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-5 pt-4">
+                <div className="flex items-center gap-2 mb-2">
+                    <Building size={18} className="text-gray-400" />
+                    <h5 className="text-sm font-bold text-gray-900 uppercase">Company Information</h5>
+                </div>
+
                 <InputField 
                     label="Company Name" 
                     id={'emp-name-' + index} 
@@ -69,252 +65,278 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
                     value={item.name} 
                     onChange={handleChange} 
                     required={empHistoryConfig.required} 
-                    placeholder="ABC Trucking Inc."
+                    placeholder="Official Name"
                 />
-                <InputField 
-                    label="Street Address" 
-                    id={'emp-street-' + index} 
-                    name="street" 
-                    value={item.street} 
-                    onChange={handleChange} 
-                    required={empHistoryConfig.required} 
-                    placeholder="123 Haul St"
-                />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <InputField 
-                    label="City" 
-                    id={'emp-city-' + index} 
-                    name="city" 
-                    value={item.city} 
-                    onChange={handleChange} 
-                    required={empHistoryConfig.required} 
-                />
-                <div>
-                    <label htmlFor={'emp-state-' + index} className="block text-sm font-medium text-gray-700 mb-1">
-                        State {empHistoryConfig.required && <span className="text-red-500">*</span>}
-                    </label>
-                    <select 
-                        id={'emp-state-' + index} 
-                        name="state" 
-                        required={empHistoryConfig.required} 
-                        value={item.state || ""} 
-                        onChange={(e) => handleChange(e.target.name, e.target.value)} 
-                        className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
-                    >
-                        <option value="" disabled>Select State</option>
-                        {states.map(state => <option key={state} value={state}>{state}</option>)}
-                    </select>
-                </div>
-                <InputField 
-                    label="Zip Code" 
-                    id={'emp-zip-' + index} 
-                    name="zip" 
-                    value={item.zip} 
-                    onChange={handleChange} 
-                    placeholder="12345"
-                />
-            </div>
-
-            {/* 2. Verification Contact Info (Critical for VOE) */}
-            <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
-                <label className="block text-xs font-bold text-blue-800 uppercase mb-3">
-                    Verification Contact (Required for Background Check)
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <InputField 
-                        label="Contact Person / Supervisor" 
+                        label="Position Held" 
+                        id={'emp-position-' + index} 
+                        name="position" 
+                        value={item.position} 
+                        onChange={handleChange} 
+                        required={true}
+                    />
+                    <InputField 
+                        label="Dates Employed" 
+                        id={'emp-dates-' + index} 
+                        name="dates" 
+                        value={item.dates} 
+                        onChange={handleChange} 
+                        required={true}
+                        placeholder="MM/YYYY - MM/YYYY"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="block text-sm font-bold text-gray-900 uppercase tracking-wide">
+                        Address <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 gap-4">
+                        <input
+                            type="text"
+                            placeholder="Street Address"
+                            className="w-full p-4 border border-gray-300 rounded-lg"
+                            value={item.street || ""}
+                            onChange={(e) => handleChange("street", e.target.value)}
+                            required={empHistoryConfig.required}
+                        />
+                        <div className="grid grid-cols-2 gap-4">
+                            <input
+                                type="text"
+                                placeholder="City"
+                                className="w-full p-4 border border-gray-300 rounded-lg"
+                                value={item.city || ""}
+                                onChange={(e) => handleChange("city", e.target.value)}
+                                required={empHistoryConfig.required}
+                            />
+                            <select 
+                                required={empHistoryConfig.required} 
+                                value={item.state || ""} 
+                                onChange={(e) => handleChange("state", e.target.value)} 
+                                className="w-full p-4 border border-gray-300 rounded-lg bg-white"
+                            >
+                                <option value="" disabled>State</option>
+                                {states.map(state => <option key={state} value={state}>{state}</option>)}
+                            </select>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Zip Code"
+                            className="w-full p-4 border border-gray-300 rounded-lg"
+                            value={item.zip || ""}
+                            onChange={(e) => handleChange("zip", e.target.value)}
+                            required={empHistoryConfig.required}
+                        />
+                    </div>
+                </div>
+
+                <InputField 
+                    label="Reason for Leaving" 
+                    id={'emp-reason-' + index} 
+                    name="reason" 
+                    value={item.reason} 
+                    onChange={handleChange} 
+                    required={true}
+                />
+            </div>
+
+            {/* 2. Verification Contact (Highlighted) */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="flex items-center gap-2 mb-4">
+                    <Mail size={18} className="text-blue-600" />
+                    <h5 className="text-sm font-bold text-blue-900 uppercase">Verification Contact</h5>
+                </div>
+                <p className="text-xs text-blue-700 mb-4">
+                    Please provide a valid email/phone for the safety manager or HR department. We will use this to automatically verify your employment.
+                </p>
+
+                <div className="space-y-4">
+                    <InputField 
+                        label="Supervisor / Contact Person" 
                         id={'emp-contact-' + index} 
                         name="contactPerson" 
                         value={item.contactPerson} 
                         onChange={handleChange} 
-                        placeholder="Jane Doe (Safety Manager)"
+                        placeholder="e.g. Jane Doe (Safety Director)"
                     />
+                    
                     <InputField 
-                        label="Email (For Verification Request)" 
+                        label="Email Address" 
                         id={'emp-email-' + index} 
                         name="email" 
                         type="email"
                         value={item.email} 
                         onChange={handleChange} 
-                        placeholder="safety@abctrucking.com"
-                        required={true} // Mandatory for Automation
-                    />
-                    <InputField 
-                        label="Phone" 
-                        id={'emp-phone-' + index} 
-                        name="phone" 
-                        type="tel" 
-                        value={item.phone} 
-                        onChange={handleChange} 
+                        placeholder="safety@company.com"
                         required={true}
+                        helperText="Required for automated verification."
                     />
-                    <InputField 
-                        label="Fax" 
-                        id={'emp-fax-' + index} 
-                        name="fax" 
-                        type="tel" 
-                        value={item.fax} 
-                        onChange={handleChange} 
-                        placeholder="Optional"
-                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <InputField 
+                            label="Phone" 
+                            id={'emp-phone-' + index} 
+                            name="phone" 
+                            type="tel" 
+                            value={item.phone} 
+                            onChange={handleChange} 
+                            required={true}
+                        />
+                        <InputField 
+                            label="Fax (Optional)" 
+                            id={'emp-fax-' + index} 
+                            name="fax" 
+                            type="tel" 
+                            value={item.fax} 
+                            onChange={handleChange} 
+                        />
+                    </div>
                 </div>
             </div>
+        </div>
+    );
 
-            {/* 3. Job Details */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InputField 
-                    label="Position Held" 
-                    id={'emp-position-' + index} 
-                    name="position" 
-                    value={item.position} 
-                    onChange={handleChange} 
-                />
-                <InputField 
-                    label="Dates Employed (mm/yyyy - mm/yyyy)" 
-                    id={'emp-dates-' + index} 
-                    name="dates" 
-                    value={item.dates} 
-                    onChange={handleChange} 
-                    placeholder="01/2020 - 05/2023"
-                />
-                <div className="sm:col-span-2">
-                    <InputField 
-                        label="Reason for Leaving" 
-                        id={'emp-reason-' + index} 
-                        name="reason" 
-                        value={item.reason} 
-                        onChange={handleChange} 
-                    />
+    const renderUnemploymentRow = (index, item, handleChange) => (
+        <div key={index} className="p-4 mb-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <InputField label="Start Date" id={`gap-start-${index}`} name="startDate" value={item.startDate} onChange={handleChange} required placeholder="MM/YYYY" />
+                    <InputField label="End Date" id={`gap-end-${index}`} name="endDate" value={item.endDate} onChange={handleChange} required placeholder="MM/YYYY" />
                 </div>
+                <InputField label="Explanation" id={`gap-det-${index}`} name="details" value={item.details} onChange={handleChange} required placeholder="Reason for gap..." />
             </div>
         </div>
     );
 
     const renderSchoolRow = (index, item, handleChange) => (
-        <div key={index} className="space-y-3">
-            <InputField label="School Name" id={'school-name-' + index} name="name" value={item.name} onChange={handleChange} required={true} />
-            <InputField label="Dates Attended" id={'school-dates-' + index} name="dates" value={item.dates} onChange={handleChange} />
-            <InputField label="Location (City, State)" id={'school-location-' + index} name="location" value={item.location} onChange={handleChange} />
-        </div>
-    );
-
-    const renderUnemploymentRow = (index, item, handleChange) => (
-        <div key={index} className="space-y-3">
-            <InputField label="Start Date (mm/yyyy)" id={'unemp-start-' + index} name="startDate" value={item.startDate} onChange={handleChange} required={true} />
-            <InputField label="End Date (mm/yyyy)" id={'unemp-end-' + index} name="endDate" value={item.endDate} onChange={handleChange} required={true} />
-            <div className="space-y-2">
-                <label htmlFor={'unemp-details-' + index} className="block text-sm font-medium text-gray-700 mb-1">Details related to unemployment period</label>
-                <textarea id={'unemp-details-' + index} name="details" rows="3" value={item.details || ""} onChange={(e) => handleChange(e.target.name, e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
-            </div>
+        <div key={index} className="p-4 mb-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+            <InputField label="School Name" id={`sch-name-${index}`} name="name" value={item.name} onChange={handleChange} required />
+            <InputField label="Dates Attended" id={`sch-dates-${index}`} name="dates" value={item.dates} onChange={handleChange} />
+            <InputField label="Location" id={`sch-loc-${index}`} name="location" value={item.location} onChange={handleChange} />
         </div>
     );
 
     const renderMilitaryRow = (index, item, handleChange) => (
-        <div key={index} className="space-y-3">
-            <RadioGroup 
-                label="Branch of Service" 
-                name="branch" 
-                options={MILITARY_BRANCH_OPTIONS}
-                value={item.branch} 
-                onChange={(name, value) => handleChange(name, value)}
-                required={true}
-                horizontal={false}
-            />
-            <InputField label="Start Date (mm/yyyy)" id={'mil-start-' + index} name="start" value={item.start} onChange={handleChange} required={true} />
-            <InputField label="End Date (mm/yyyy)" id={'mil-end-' + index} name="end" value={item.end} onChange={handleChange} required={true} />
-            <InputField label="Rank of Discharge" id={'mil-rank-' + index} name="rank" value={item.rank} onChange={handleChange} required={true} />
-            <RadioGroup 
-                label="Did you operate heavy equipment/machinery?" 
-                name="heavyEq" 
-                options={yesNoOptions}
-                value={item.heavyEq} 
-                onChange={(name, value) => handleChange(name, value)}
-            />
-             <RadioGroup 
-                label="Did you receive an honorable discharge?" 
-                name="honorable" 
-                options={yesNoOptions}
-                value={item.honorable} 
-                onChange={(name, value) => handleChange(name, value)}
-            />
-            <div className="space-y-2">
-                <label htmlFor={'mil-explain-' + index} className="block text-sm font-medium text-gray-700 mb-1">Please explain</label>
-                <textarea id={'mil-explain-' + index} name="explanation" rows="3" value={item.explanation || ""} onChange={(e) => handleChange(e.target.name, e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+        <div key={index} className="p-4 mb-4 bg-gray-50 rounded-lg border border-gray-200 space-y-4">
+            <RadioGroup label="Branch" name="branch" options={MILITARY_BRANCH_OPTIONS} value={item.branch} onChange={(n, v) => handleChange(n, v)} required horizontal={false} />
+            <div className="grid grid-cols-2 gap-4">
+                <InputField label="Start Date" id={`mil-start-${index}`} name="start" value={item.start} onChange={handleChange} required />
+                <InputField label="End Date" id={`mil-end-${index}`} name="end" value={item.end} onChange={handleChange} required />
             </div>
+            <InputField label="Rank at Discharge" id={`mil-rank-${index}`} name="rank" value={item.rank} onChange={handleChange} required />
+            <RadioGroup label="Honorable Discharge?" name="honorable" options={YES_NO_OPTIONS} value={item.honorable} onChange={(n, v) => handleChange(n, v)} />
         </div>
     );
 
     return (
-        <div id="page-6" className="form-step space-y-6">
-            <h3 className="text-xl font-semibold text-gray-800">Step 6 of 9: Employment History</h3>
-            <p className="text-sm text-gray-600">Please provide **3 years** of work history. In addition, please identify any employers for whom you have operated a commercial motor vehicle over the **past 10 years**. Your work history should include any military service, driving schools, and periods of unemployment, as applicable.</p>
+        <div id="page-6" className="space-y-8 animate-in fade-in duration-500">
+            
+            <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-gray-900">Employment History</h3>
+                <p className="text-gray-600">
+                    Provide 3 years of history. If you drove a CMV, provide 10 years.
+                </p>
+            </div>
 
-            {/* Previous Employers - Configurable */}
+            {/* 1. EMPLOYERS */}
             {!empHistoryConfig.hidden && (
-                <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
-                    <legend className="text-lg font-semibold text-gray-800 px-2">Previous Employers</legend>
-                    <DynamicRow
-                        listKey="employers"
-                        formData={formData}
-                        updateFormData={updateFormData}
-                        renderRow={renderEmployerRow}
-                        initialItemState={initialEmployer}
-                        addButtonLabel="+ Add Employer"
-                    />
-                </fieldset>
+                <section className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                            <Truck size={20} />
+                        </div>
+                        <h4 className="text-lg font-bold text-gray-900">Previous Employers</h4>
+                    </div>
+                    
+                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <DynamicRow
+                            listKey="employers"
+                            formData={formData}
+                            updateFormData={updateFormData}
+                            renderRow={renderEmployerRow}
+                            initialItemState={initialEmployer}
+                            addButtonLabel="+ Add Employer"
+                            emptyMessage="No previous employers listed. Click below to add."
+                        />
+                    </div>
+                </section>
             )}
 
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Employment Gaps</legend>
-                <p className="text-sm text-gray-600">Please explain any gaps in employment of 30 days or more.</p>
-                <DynamicRow
-                    listKey="unemployment"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderUnemploymentRow}
-                    initialItemState={initialUnemployment}
-                    addButtonLabel="+ Add Employment Gap"
-                />
-            </fieldset>
+            {/* 2. GAPS */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
+                        <Calendar size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Employment Gaps</h4>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <p className="text-sm text-gray-500 mb-4">Explain any gaps in employment of 30 days or more.</p>
+                    <DynamicRow
+                        listKey="unemployment"
+                        formData={formData}
+                        updateFormData={updateFormData}
+                        renderRow={renderUnemploymentRow}
+                        initialItemState={initialUnemployment}
+                        addButtonLabel="+ Add Gap Explanation"
+                    />
+                </div>
+            </section>
 
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Driving Schools</legend>
-                <DynamicRow
-                    listKey="schools"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderSchoolRow}
-                    initialItemState={initialSchool}
-                    addButtonLabel="+ Add Driving School"
-                />
-            </fieldset>
+            {/* 3. SCHOOLS */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                        <BookOpen size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Driving Schools</h4>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <DynamicRow
+                        listKey="schools"
+                        formData={formData}
+                        updateFormData={updateFormData}
+                        renderRow={renderSchoolRow}
+                        initialItemState={initialSchool}
+                        addButtonLabel="+ Add Driving School"
+                    />
+                </div>
+            </section>
 
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Military Service</legend>
-                 <DynamicRow
-                    listKey="military"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderMilitaryRow}
-                    initialItemState={initialMilitary}
-                    addButtonLabel="+ Add Military Service"
-                />
-            </fieldset>
+            {/* 4. MILITARY */}
+            <section className="space-y-4">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+                        <Flag size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Military Service</h4>
+                </div>
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                    <DynamicRow
+                        listKey="military"
+                        formData={formData}
+                        updateFormData={updateFormData}
+                        renderRow={renderMilitaryRow}
+                        initialItemState={initialMilitary}
+                        addButtonLabel="+ Add Military Service"
+                    />
+                </div>
+            </section>
 
-            <div className="flex justify-between pt-6">
+            {/* NAV */}
+            <div className="flex justify-between pt-8 pb-10">
                 <button 
                     type="button" 
                     onClick={() => onNavigate('back')}
-                    className="w-auto px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-200"
+                    className="px-8 py-4 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors"
                 >
                     Back
                 </button>
                 <button 
                     type="button" 
                     onClick={handleContinue}
-                    className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
+                    className="px-10 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-blue-700 hover:shadow-xl transition-all transform active:scale-95"
                 >
                     Continue
                 </button>
