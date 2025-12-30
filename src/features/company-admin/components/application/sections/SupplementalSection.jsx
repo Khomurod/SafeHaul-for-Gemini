@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck, Phone, 
-  Gavel, HeartPulse, CheckCircle2, ShieldAlert, BadgeCheck, Send, Loader2, Check 
+  Gavel, HeartPulse, CheckCircle2, ShieldAlert, BadgeCheck, Send, Loader2, Mail
 } from 'lucide-react';
 import { Section } from '../ApplicationUI';
 import { getFieldValue } from '@shared/utils/helpers';
@@ -11,7 +11,7 @@ import { useToast } from '@shared/components/feedback/ToastProvider';
 
 export function SupplementalSection({ appData, companyId, applicationId }) {
   const { showSuccess, showError } = useToast();
-  const [verifyingIndex, setVerifyingIndex] = useState(null); // Tracks which button is loading
+  const [verifyingIndex, setVerifyingIndex] = useState(null);
 
   const renderEmpty = (text) => <p className="text-gray-400 italic text-sm">{text}</p>;
   const formatPhone = (phone) => phone ? phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : 'N/A';
@@ -23,12 +23,23 @@ export function SupplementalSection({ appData, companyId, applicationId }) {
   const hasSuspended = appData['driving-convictions'] === 'yes';
   const hasDrugConviction = appData['drug-alcohol-convictions'] === 'yes';
 
-  // --- VOE LOGIC ---
+  // --- SMART VOE LOGIC ---
   const handleVerifyRequest = async (employer, index) => {
-      // 1. Get Email (Prompt Recruiter since it wasn't collected from driver)
-      const recipientEmail = prompt(`Enter email address for verification at ${employer.name}:`);
+      let recipientEmail = employer.email;
       
-      if (!recipientEmail) return; // User cancelled
+      // 1. Auto-detect or Prompt
+      if (recipientEmail) {
+          const confirmed = window.confirm(`Send verification request to saved contact: ${recipientEmail}?`);
+          if (!confirmed) {
+              // Allow override if they say no
+              recipientEmail = prompt("Enter the correct email address for verification:");
+          }
+      } else {
+          recipientEmail = prompt(`No email on file for ${employer.name}. Please enter verification email:`);
+      }
+
+      // 2. Validation
+      if (!recipientEmail) return; 
       if (!recipientEmail.includes('@')) {
           showError("Invalid email address.");
           return;
@@ -36,6 +47,7 @@ export function SupplementalSection({ appData, companyId, applicationId }) {
 
       setVerifyingIndex(index);
 
+      // 3. Call Cloud Function
       try {
           const sendVOE = httpsCallable(functions, 'sendVOERequest');
           await sendVOE({
@@ -220,9 +232,11 @@ export function SupplementalSection({ appData, companyId, applicationId }) {
                   {appData.employers.map((emp, index) => (
                       <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2">
-                              <h4 className="font-bold text-gray-900 flex items-center gap-2">
-                                  <Truck size={16} className="text-gray-400"/> {emp.name}
-                              </h4>
+                              <div className="flex items-center gap-2">
+                                  <Truck size={16} className="text-gray-400"/> 
+                                  <h4 className="font-bold text-gray-900">{emp.name}</h4>
+                                  {emp.email && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 flex items-center gap-1" title="Email on file"><Mail size={8}/> Contact</span>}
+                              </div>
                               
                               <div className="flex items-center gap-2 mt-1 sm:mt-0">
                                   <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-1 border rounded">
@@ -248,7 +262,8 @@ export function SupplementalSection({ appData, companyId, applicationId }) {
                               <p><span className="font-medium">Location:</span> {emp.city}, {emp.state}</p>
                               <p><span className="font-medium">Position:</span> {emp.position}</p>
                               <p className="sm:col-span-2"><span className="font-medium">Reason for Leaving:</span> {emp.reason}</p>
-                              {emp.phone && <p className="sm:col-span-2"><span className="font-medium">Contact:</span> {formatPhone(emp.phone)}</p>}
+                              {emp.contactPerson && <p className="sm:col-span-2"><span className="font-medium">Supervisor:</span> {emp.contactPerson}</p>}
+                              {emp.phone && <p className="sm:col-span-2"><span className="font-medium">Phone:</span> {formatPhone(emp.phone)}</p>}
                           </div>
                       </div>
                   ))}
