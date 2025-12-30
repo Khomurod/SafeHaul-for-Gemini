@@ -1,281 +1,235 @@
-// src/shared/utils/pdf/pdfSections.js
-import { PDF_CONFIG } from './pdfConfig';
-import { checkPageBreak, addTableHeader, addTableRow } from './pdfHelpers';
-import { getFieldValue } from '../helpers';
+import { PDF_THEME, setHeaderStyle, setLabelStyle, setValueStyle } from './pdfStyles';
+import { 
+    drawSectionCard, 
+    drawGridRow, 
+    drawField, 
+    drawBooleanBadge, 
+    drawDivider,
+    checkPageBreak 
+} from './pdfHelpers';
 
-export function addPageHeader(doc, companyData) {
-    let y = PDF_CONFIG.MARGIN;
-    const name = getFieldValue(companyData?.companyName);
-    const street = getFieldValue(companyData?.address?.street);
-    const cityStateZip = `${getFieldValue(companyData?.address?.city)}, ${getFieldValue(companyData?.address?.state)} ${getFieldValue(companyData?.address?.zip)}`;
-    const phone = getFieldValue(companyData?.contact?.phone);
+const val = (v) => v || "N/A";
 
-    // Official DOT-style Header
-    doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
+/**
+ * 1. EXECUTIVE HEADER
+ * Renders a formal letterhead with Company Info and Document ID.
+ */
+export const addPageHeader = (doc, company, docTitle = "OFFICIAL DRIVER QUALIFICATION FILE") => {
+    const startX = PDF_THEME.LAYOUT.MARGIN;
+    const endX = PDF_THEME.LAYOUT.PAGE_WIDTH - PDF_THEME.LAYOUT.MARGIN;
+    let y = PDF_THEME.LAYOUT.MARGIN;
+
+    // Company Name (Brand Color)
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'bold');
     doc.setFontSize(16);
-    doc.text("DRIVER'S APPLICATION FOR EMPLOYMENT", PDF_CONFIG.PAGE_WIDTH / 2, y, { align: 'center' });
+    doc.setTextColor(PDF_THEME.COLORS.ACCENT);
+    doc.text(company?.companyName || "SAFEHAUL CARRIER", startX, y);
 
-    y += PDF_CONFIG.LINE_HEIGHT;
+    // Document Label (Right Aligned)
     doc.setFontSize(10);
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-    doc.text("In compliance with Federal and State Equal Employment Opportunity Laws", PDF_CONFIG.PAGE_WIDTH / 2, y, { align: 'center' });
+    doc.setTextColor(PDF_THEME.COLORS.SECONDARY);
+    doc.text(docTitle, endX, y, { align: "right" });
 
-    y += PDF_CONFIG.LINE_HEIGHT * 1.5;
+    y += 6;
 
-    // Company Info Block (Left Aligned)
-    doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
-    doc.setFontSize(12);
-    doc.text(name, PDF_CONFIG.MARGIN, y);
+    // Company Address Subtitle
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'normal');
+    doc.setFontSize(8);
+    const address = `${company?.address?.street || ''}, ${company?.address?.city || ''} ${company?.address?.state || ''}`;
+    doc.text(address, startX, y);
+    
+    // Date Generated
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, endX, y, { align: "right" });
 
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-    doc.setFontSize(10);
-    y += PDF_CONFIG.LINE_HEIGHT;
-    doc.text(street, PDF_CONFIG.MARGIN, y);
-    y += PDF_CONFIG.LINE_HEIGHT;
-    doc.text(cityStateZip, PDF_CONFIG.MARGIN, y);
-    y += PDF_CONFIG.LINE_HEIGHT;
-    doc.text(`Phone: ${phone}`, PDF_CONFIG.MARGIN, y);
+    y += 8;
 
-    // Meta-data (Right Aligned)
-    let tempY = PDF_CONFIG.MARGIN + (PDF_CONFIG.LINE_HEIGHT * 2.5);
-    const today = new Date();
-    const dateStr = today.toLocaleDateString("en-US", { year: 'numeric', month: 'long', day: 'numeric' });
-
-    doc.setFontSize(9);
-    doc.text("49 CFR 391.21 Compliant", PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN, tempY, { align: 'right' });
-    tempY += PDF_CONFIG.LINE_HEIGHT;
-    doc.text(`Generated: ${dateStr}`, PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN, tempY, { align: 'right' });
-
-    y += PDF_CONFIG.LINE_HEIGHT;
-    doc.setDrawColor(0);
+    // Divider Bar
+    doc.setDrawColor(PDF_THEME.COLORS.ACCENT);
     doc.setLineWidth(0.5);
-    doc.line(PDF_CONFIG.MARGIN, y, PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN, y);
+    doc.line(startX, y, endX, y);
 
-    return y + PDF_CONFIG.SECTION_GAP;
-}
+    return y + 10;
+};
 
-export function addEmploymentSection(doc, y, employers) {
-    y = addTableHeader(doc, y, "Employment History (Past 3-10 Years)");
+/**
+ * 2. PERSONAL IDENTITY CARD
+ * Renders Name, DOB, SSN in a clean grid.
+ */
+export const renderPersonalInfo = (doc, startY, data) => {
+    return drawSectionCard(doc, startY, "Legal Identity & Contact", (doc, y) => {
+        let currentY = y;
 
-    if (!employers || employers.length === 0) {
-        y = addTableRow(doc, y, "Status", "No employment history provided.");
-        return y;
-    }
+        // Row 1: Name
+        const fullName = `${val(data.firstName)} ${val(data.middleName)} ${val(data.lastName)} ${val(data.suffix)}`;
+        currentY = drawGridRow(doc, currentY, 
+            { label: "Full Legal Name", value: fullName },
+            { label: "Date of Birth", value: data.dob ? new Date(data.dob.toDate ? data.dob.toDate() : data.dob).toLocaleDateString() : "N/A" }
+        );
 
+        // Row 2: SSN & Phone
+        currentY = drawGridRow(doc, currentY,
+            { label: "Social Security No.", value: val(data.ssn) },
+            { label: "Phone Number", value: val(data.phone) }
+        );
+
+        // Row 3: Email & Address
+        currentY = drawGridRow(doc, currentY,
+            { label: "Email Address", value: val(data.email) },
+            { label: "Current Address", value: `${val(data.street)}, ${val(data.city)}, ${val(data.state)} ${val(data.zip)}` }
+        );
+
+        return currentY;
+    });
+};
+
+/**
+ * 3. LICENSE & QUALIFICATIONS CARD
+ */
+export const renderLicenseSection = (doc, startY, data) => {
+    return drawSectionCard(doc, startY, "License & Credentials", (doc, y) => {
+        let currentY = y;
+
+        currentY = drawGridRow(doc, currentY,
+            { label: "CDL Number", value: val(data.cdlNumber) },
+            { label: "State of Issue", value: val(data.cdlState) }
+        );
+
+        // Helper to format timestamps
+        const fmtDate = (d) => d ? new Date(d.toDate ? d.toDate() : d).toLocaleDateString() : "N/A";
+
+        currentY = drawGridRow(doc, currentY,
+            { label: "Class & Endorsements", value: `Class ${val(data.cdlClass)} | End: ${val(data.endorsements)}` },
+            { label: "Expiration Date", value: fmtDate(data.cdlExpiration) }
+        );
+
+        // Medical Card & TWIC
+        currentY = drawGridRow(doc, currentY,
+            { label: "Medical Card Exp.", value: fmtDate(data.medCardExpiration) },
+            { label: "TWIC Card", value: data['has-twic'] === 'yes' ? `YES (Exp: ${val(data.twicExpiration)})` : "NO" }
+        );
+
+        return currentY;
+    });
+};
+
+/**
+ * 4. SAFETY & COMPLIANCE HISTORY
+ * Uses Boolean Badges for high-level scanning.
+ */
+export const renderSafetyHistory = (doc, startY, data) => {
+    return drawSectionCard(doc, startY, "Safety & Compliance History", (doc, y, startX) => {
+        let currentY = y;
+
+        // Boolean Flags
+        const flags = [
+            { label: "License Suspended/Revoked?", value: data['revoked-licenses'] },
+            { label: "Drug/Alcohol Violations?", value: data['drug-alcohol-convictions'] },
+            { label: "Felony Convictions?", value: data['has-felony'] }
+        ];
+
+        flags.forEach(flag => {
+            drawBooleanBadge(doc, startX, currentY, flag.label, flag.value);
+            // Stack badges vertically with gap
+            currentY += 12; 
+        });
+
+        // Add some space if needed
+        return currentY + 5;
+    });
+};
+
+/**
+ * 5. EMPLOYMENT HISTORY (Iterative Cards)
+ */
+export const renderEmploymentSection = (doc, startY, employers = []) => {
+    if (!employers || employers.length === 0) return startY;
+
+    // Header
+    let y = drawSectionCard(doc, startY, "Employment History (Past 3 Years)", (doc, bodyY) => bodyY - 10);
+    
+    // Draw each employer as a mini-block
     employers.forEach((emp, i) => {
-        // Add a separator line between employers
-        if (i > 0) {
-            y += 2;
-            y = checkPageBreak(doc, y, PDF_CONFIG.LINE_HEIGHT);
-            doc.setDrawColor(200);
-            doc.setLineWidth(0.1);
-            doc.line(PDF_CONFIG.MARGIN, y, PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN, y);
-            y += 4;
-        }
+        y = checkPageBreak(doc, y, 40);
+        
+        // Mini Header
+        doc.setFillColor(PDF_THEME.COLORS.BG_SECTION);
+        doc.roundedRect(PDF_THEME.LAYOUT.MARGIN, y, PDF_THEME.LAYOUT.PAGE_WIDTH - (PDF_THEME.LAYOUT.MARGIN * 2), 8, 1, 1, 'F');
+        
+        doc.setFont(PDF_THEME.FONTS.MAIN, 'bold');
+        doc.setFontSize(9);
+        doc.setTextColor(PDF_THEME.COLORS.PRIMARY);
+        doc.text(`${i + 1}. ${emp.name.toUpperCase()}`, PDF_THEME.LAYOUT.MARGIN + 3, y + 5);
+        
+        y += 12;
 
-        doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
-        y = addTableRow(doc, y, `Employer ${i + 1}:`, getFieldValue(emp.name));
-        doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-
-        y = addTableRow(doc, y, "Dates Employed:", getFieldValue(emp.dates));
-        y = addTableRow(doc, y, "Position Held:", getFieldValue(emp.position));
-        y = addTableRow(doc, y, "Address:", `${getFieldValue(emp.city)}, ${getFieldValue(emp.state)}`);
-        y = addTableRow(doc, y, "Reason for Leaving:", getFieldValue(emp.reason));
-        if (emp.phone) y = addTableRow(doc, y, "Contact Phone:", getFieldValue(emp.phone));
-
-        // DOT specific question often asked
-        y = addTableRow(doc, y, "Subject to FMCSRs?", "Yes"); 
+        // Details Grid
+        y = drawGridRow(doc, y, 
+            { label: "Position", value: emp.position },
+            { label: "Dates", value: emp.dates }
+        );
+        y = drawGridRow(doc, y, 
+            { label: "Reason for Leaving", value: emp.reason },
+            { label: "Contact", value: `${val(emp.contactPerson)} (${val(emp.email)})` }
+        );
+        
+        y += 2; // Gap between employers
     });
 
-    return y;
-}
+    return y + 5;
+};
 
-export function addDrivingHistorySection(doc, y, violations, accidents) {
-    // 1. Violations
-    y = addTableHeader(doc, y, "Traffic Convictions / Violations (Past 3 Years)");
+/**
+ * 6. LEGAL SIGNATURE BLOCK
+ * Looks like a digital certificate.
+ */
+export const renderSignatureBlock = (doc, startY, data) => {
+    let y = checkPageBreak(doc, startY, 60);
+    const startX = PDF_THEME.LAYOUT.MARGIN;
+    const width = PDF_THEME.LAYOUT.PAGE_WIDTH - (PDF_THEME.LAYOUT.MARGIN * 2);
 
-    if (!violations || violations.length === 0) {
-        y = addTableRow(doc, y, "Record", "No violations listed.");
-    } else {
-        violations.forEach((v, i) => {
-            if (i > 0) y += 1;
-            const label = `Violation ${i + 1}`;
-            const content = `Date: ${v.date || 'N/A'} | Charge: ${v.charge || 'N/A'} | Location: ${v.location || 'N/A'} | Penalty: ${v.penalty || 'N/A'}`;
-            y = addTableRow(doc, y, label, content);
-        });
-    }
-
-    // 2. Accidents
-    y += PDF_CONFIG.SECTION_GAP;
-    y = addTableHeader(doc, y, "Accident History (Past 3 Years)");
-
-    if (!accidents || accidents.length === 0) {
-        y = addTableRow(doc, y, "Record", "No accidents listed.");
-    } else {
-        accidents.forEach((a, i) => {
-            if (i > 0) y += 1;
-            const label = `Accident ${i + 1}`;
-            let content = `Date: ${a.date || 'N/A'} | Loc: ${a.city}, ${a.state}`;
-            content += `\nCMV: ${a.commercial === 'yes' ? 'Yes' : 'No'} | Preventable: ${a.preventable === 'yes' ? 'Yes' : 'No'} | Fatalities: 0 | Injuries: 0`;
-            content += `\nDetails: ${a.details || 'N/A'}`;
-            y = addTableRow(doc, y, label, content);
-        });
-    }
-
-    return y;
-}
-
-export function addCustomQuestionsSection(doc, y, customAnswers) {
-    if (!customAnswers || Object.keys(customAnswers).length === 0) return y;
-
-    y = addTableHeader(doc, y, "Supplemental Questions");
-
-    Object.entries(customAnswers).forEach(([q, a]) => {
-        const val = Array.isArray(a) ? a.join(', ') : String(a);
-        y = addTableRow(doc, y, q, val);
-    });
-
-    return y;
-}
-
-export function addAgreementHeader(doc, y, title, companyName = "") {
-    y = checkPageBreak(doc, y, PDF_CONFIG.LINE_HEIGHT * 3);
-    y += PDF_CONFIG.SECTION_GAP;
-
-    doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(0, 0, 0);
-
-    // Centered Title
-    const titleWidth = doc.getTextWidth(title);
-    const x = (PDF_CONFIG.PAGE_WIDTH - titleWidth) / 2;
-    doc.text(title, x, y);
-
-    y += PDF_CONFIG.LINE_HEIGHT * 1.5;
-
-    if (companyName) {
-        doc.setFontSize(10);
-        doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-        doc.text(`Prepared for: ${companyName}`, PDF_CONFIG.MARGIN, y);
-        y += PDF_CONFIG.LINE_HEIGHT;
-    }
-
-    // Horizontal Rule
-    doc.setLineWidth(0.2);
-    doc.line(PDF_CONFIG.MARGIN, y, PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN, y);
-    return y + PDF_CONFIG.LINE_HEIGHT;
-}
-
-export function addSignatureBlock(doc, y, applicantData) {
-    y = checkPageBreak(doc, y, 70); 
-    y += PDF_CONFIG.SECTION_GAP * 2;
-
-    const sigDate = getFieldValue(applicantData['signature-date']);
-    const signatureData = applicantData.signature; 
-    const name = `${getFieldValue(applicantData['firstName'])} ${getFieldValue(applicantData['lastName'])}`;
-
-    // --- 49 CFR 391.21(b)(12) Certification Statement ---
-    const certificationText = "This certifies that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge.";
-
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "italic");
-    doc.setFontSize(10);
-    const splitCert = doc.splitTextToSize(certificationText, PDF_CONFIG.PAGE_WIDTH - (PDF_CONFIG.MARGIN * 2));
-    doc.text(splitCert, PDF_CONFIG.MARGIN, y);
-    y += (splitCert.length * PDF_CONFIG.LINE_HEIGHT) + PDF_CONFIG.SECTION_GAP;
-
-    // --- Applicant Details ---
-    doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
-    doc.setFontSize(11);
-    doc.text("APPLICANT SIGNATURE", PDF_CONFIG.MARGIN, y);
-    y += PDF_CONFIG.LINE_HEIGHT;
-
-    // Draw Signature Box
-    doc.setDrawColor(0);
+    // Container Box
+    doc.setDrawColor(PDF_THEME.COLORS.BORDER);
     doc.setLineWidth(0.5);
-    doc.rect(PDF_CONFIG.MARGIN, y, PDF_CONFIG.PAGE_WIDTH - (PDF_CONFIG.MARGIN * 2), 35);
+    doc.roundedRect(startX, y, width, 50, 2, 2);
 
-    const contentY = y + 5;
+    y += 10;
 
-    // 1. Signature
-    if (signatureData) {
-        if (signatureData.startsWith('TEXT_SIGNATURE:')) {
-            const typedName = signatureData.replace('TEXT_SIGNATURE:', '');
-            doc.setFont("times", "italic");
-            doc.setFontSize(22);
-            doc.text(`/s/ ${typedName}`, PDF_CONFIG.MARGIN + 10, contentY + 12);
-        } else {
-            try {
-                doc.addImage(signatureData, 'PNG', PDF_CONFIG.MARGIN + 10, contentY, 80, 25, undefined, 'FAST');
-            } catch (e) {
-                doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-                doc.setFontSize(10);
-                doc.text("(Electronic Signature Image)", PDF_CONFIG.MARGIN + 10, contentY + 15);
-            }
-        }
-    } else {
-        doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-        doc.setFontSize(12);
-        doc.setTextColor(150);
-        doc.text("[Not Signed]", PDF_CONFIG.MARGIN + 10, contentY + 15);
-        doc.setTextColor(0);
-    }
-
-    // 2. Date & Name
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
+    // "Digitally Signed" Header
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'bold');
     doc.setFontSize(10);
-    const rightColX = PDF_CONFIG.PAGE_WIDTH / 2 + 10;
+    doc.setTextColor(PDF_THEME.COLORS.ACCENT);
+    doc.text("DIGITAL SIGNATURE & CONSENT CERTIFICATE", startX + 5, y);
 
-    doc.text(`Date Signed: ${sigDate}`, rightColX, contentY + 8);
-    doc.text(`Printed Name: ${name}`, rightColX, contentY + 18);
+    y += 8;
 
-    // 3. SSN (Unmasked for DOT compliance in file)
-    if (applicantData.ssn) {
-        doc.text(`Social Security No: ${applicantData.ssn}`, rightColX, contentY + 28);
-    }
+    // Legal Text
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(PDF_THEME.COLORS.SECONDARY);
+    const legalText = "By electronically signing this document, I certify that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge. I authorize the carrier to make such investigations and inquiries of my personal, employment, financial or medical history and other related matters as may be necessary in arriving at an employment decision.";
+    const splitLegal = doc.splitTextToSize(legalText, width - 10);
+    doc.text(splitLegal, startX + 5, y);
 
-    return y + 45; // Return Y after the box
-}
+    y += (splitLegal.length * 3) + 10;
 
-export function addHosTable(doc, y, data) {
-    y = checkPageBreak(doc, y, 30);
-    const tableX = PDF_CONFIG.MARGIN;
-    const rowHeight = 8; // Slightly taller rows
-    const colWidth = (PDF_CONFIG.PAGE_WIDTH - (PDF_CONFIG.MARGIN * 2)) / 7;
+    // The Signature
+    const sigText = data.signature?.replace('TEXT_SIGNATURE:', '') || data.signatureName || "Not Signed";
+    
+    // Draw Signature Line
+    doc.setFont("times", 'italic'); // Serif font looks more like a signature
+    doc.setFontSize(18);
+    doc.setTextColor(PDF_THEME.COLORS.PRIMARY);
+    doc.text(`/s/ ${sigText}`, startX + 10, y);
 
-    // Title
-    doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
-    doc.setFontSize(10);
-    doc.text("RECORD OF HOURS WORKED (Previous 7 Days)", PDF_CONFIG.MARGIN, y);
-    y += 5;
+    // Meta Data (Right Side)
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(PDF_THEME.COLORS.SECONDARY);
+    const dateSigned = data['signature-date'] || new Date().toLocaleDateString();
+    
+    doc.text(`Date Signed: ${dateSigned}`, endX - 5, y, { align: 'right' });
+    doc.text(`IP Address: ${val(data.ipAddress)}`, endX - 5, y + 4, { align: 'right' });
+    doc.text(`Ref ID: ${val(data.id)}`, endX - 5, y + 8, { align: 'right' });
 
-    // Header Row
-    doc.setFontSize(9);
-    doc.setFillColor(230, 230, 230); // Light gray
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.1);
-
-    let currentX = tableX;
-    for (let i = 1; i <= 7; i++) {
-        doc.rect(currentX, y, colWidth, rowHeight, 'FD'); 
-        doc.text(`Day ${i}`, currentX + colWidth / 2, y + 5.5, { align: 'center' });
-        currentX += colWidth;
-    }
-    y += rowHeight;
-
-    // Data Row
-    currentX = tableX;
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-    doc.setFillColor(255, 255, 255); // White
-
-    for (let i = 1; i <= 7; i++) {
-        const val = getFieldValue(data['hosDay' + i]);
-        // Only show number if present, else empty or 0
-        const displayVal = (val === "Not Specified" || val === "") ? "0" : val;
-
-        doc.rect(currentX, y, colWidth, rowHeight, 'S'); 
-        doc.text(String(displayVal), currentX + colWidth / 2, y + 5.5, { align: 'center' });
-        currentX += colWidth;
-    }
-
-    return y + rowHeight + PDF_CONFIG.SECTION_GAP;
-}
+    return y + 20;
+};
