@@ -1,13 +1,14 @@
 // src/features/super-admin/views/UnifiedDriverList.jsx
 import React, { useState, useMemo } from 'react';
-import { db } from '@lib/firebase'; // Updated to use alias
+import { db } from '@lib/firebase';
 import { doc, deleteDoc } from 'firebase/firestore';
 import { 
-    Search, Trash2, Filter, Download, 
-    FileText, Zap, User, Briefcase, Share2, Loader2 
+     Search, Trash2, Filter, Download, 
+     FileText, Zap, User, Briefcase, Share2, Loader2,
+     AlertTriangle, AlertCircle // Added for Compliance
 } from 'lucide-react';
-import { getFieldValue } from '@shared/utils/helpers'; // Updated to use alias
-import { useToast } from '@shared/components/feedback'; // Updated to use alias
+import { getFieldValue } from '@shared/utils/helpers';
+import { useToast } from '@shared/components/feedback';
 
 // Helper for Source Badge
 const SourceBadge = ({ type }) => {
@@ -46,10 +47,10 @@ const SourceBadge = ({ type }) => {
 };
 
 export function UnifiedDriverList({ 
-    allApplications, 
-    allCompaniesMap, 
-    onAppClick,
-    onDataUpdate
+     allApplications, 
+     allCompaniesMap, 
+     onAppClick, 
+     onDataUpdate
 }) {
     const { showSuccess, showError } = useToast();
     const [search, setSearch] = useState('');
@@ -60,6 +61,32 @@ export function UnifiedDriverList({
     // --- Pagination ---
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(50);
+
+    // --- NEW: Compliance Helper ---
+    const getComplianceStatus = (driver) => {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const warningDate = new Date();
+        warningDate.setDate(today.getDate() + 30); // 30 days warning
+
+        const checkDate = (dateVal) => {
+            if (!dateVal) return 'ok';
+            // Handle Firestore Timestamp or String
+            const date = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
+            if (isNaN(date.getTime())) return 'ok'; 
+            
+            if (date < today) return 'expired';
+            if (date < warningDate) return 'warning';
+            return 'ok';
+        };
+
+        const cdlStatus = checkDate(driver.cdlExpiration);
+        const medStatus = checkDate(driver.medCardExpiration);
+
+        if (cdlStatus === 'expired' || medStatus === 'expired') return { status: 'expired', msg: 'Document Expired' };
+        if (cdlStatus === 'warning' || medStatus === 'warning') return { status: 'warning', msg: 'Expiring Soon' };
+        return { status: 'ok', msg: '' };
+    };
 
     // --- Data Processing ---
     const filteredData = useMemo(() => {
@@ -73,7 +100,6 @@ export function UnifiedDriverList({
                 const email = (item.email || '').toLowerCase();
                 const phone = (item.phone || '').toLowerCase();
                 const company = (allCompaniesMap.get(item.companyId) || '').toLowerCase();
-
                 return name.includes(term) || email.includes(term) || phone.includes(term) || company.includes(term);
             });
         }
@@ -146,7 +172,7 @@ export function UnifiedDriverList({
 
     return (
         <div className="space-y-6 h-full flex flex-col">
-
+            
             {/* Header / Controls */}
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-end md:items-center shrink-0">
                 <div>
@@ -166,7 +192,7 @@ export function UnifiedDriverList({
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-
+                    
                     {/* Filter */}
                     <div className="relative">
                         <Filter size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
@@ -200,15 +226,25 @@ export function UnifiedDriverList({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {paginatedData.map(item => (
+                            {paginatedData.map(item => {
+                                const compliance = getComplianceStatus(item);
+                                let rowClass = "hover:bg-blue-50 cursor-pointer transition-colors group";
+                                
+                                if (compliance.status === 'expired') rowClass += " bg-red-50 hover:bg-red-100";
+                                else if (compliance.status === 'warning') rowClass += " bg-yellow-50 hover:bg-yellow-100";
+
+                                return (
                                 <tr 
                                     key={item.id} 
                                     onClick={() => onAppClick(item)}
-                                    className="hover:bg-blue-50 cursor-pointer transition-colors group"
+                                    className={rowClass}
                                 >
                                     <td className="px-6 py-3">
-                                        <div className="font-bold text-gray-900">
+                                        <div className="font-bold text-gray-900 flex items-center gap-2">
                                             {item.firstName} {item.lastName}
+                                            {/* Compliance Icon */}
+                                            {compliance.status === 'expired' && <AlertCircle size={16} className="text-red-600" title={compliance.msg}/>}
+                                            {compliance.status === 'warning' && <AlertTriangle size={16} className="text-yellow-600" title={compliance.msg}/>}
                                         </div>
                                         <div className="text-xs text-gray-400 font-mono flex gap-2">
                                             {item.email}
@@ -226,6 +262,11 @@ export function UnifiedDriverList({
                                         <span className={`inline-block px-2 py-0.5 text-xs rounded border bg-gray-50 text-gray-600 border-gray-200`}>
                                             {item.status || 'New'}
                                         </span>
+                                        {compliance.status !== 'ok' && (
+                                            <div className="mt-1 text-[10px] font-bold uppercase tracking-wide">
+                                                {compliance.status === 'expired' ? <span className="text-red-600">Expired</span> : <span className="text-yellow-600">Expiring</span>}
+                                            </div>
+                                        )}
                                     </td>
                                     <td className="px-6 py-3 text-sm text-gray-500">
                                         {item.createdAt?.seconds 
@@ -243,7 +284,8 @@ export function UnifiedDriverList({
                                         </button>
                                     </td>
                                 </tr>
-                            ))}
+                            );
+                        })}
                             {filteredData.length === 0 && (
                                 <tr>
                                     <td colSpan="6" className="p-10 text-center text-gray-400">
