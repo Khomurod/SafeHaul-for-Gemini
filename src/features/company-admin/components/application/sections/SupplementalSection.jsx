@@ -1,9 +1,17 @@
-import React from 'react';
-import { HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck, Phone, Gavel, HeartPulse, CheckCircle2, ShieldAlert, BadgeCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck, Phone, 
+  Gavel, HeartPulse, CheckCircle2, ShieldAlert, BadgeCheck, Send, Loader2, Check 
+} from 'lucide-react';
 import { Section } from '../ApplicationUI';
 import { getFieldValue } from '@shared/utils/helpers';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@lib/firebase';
+import { useToast } from '@shared/components/feedback/ToastProvider';
 
-export function SupplementalSection({ appData }) {
+export function SupplementalSection({ appData, companyId, applicationId }) {
+  const { showSuccess, showError } = useToast();
+  const [verifyingIndex, setVerifyingIndex] = useState(null); // Tracks which button is loading
 
   const renderEmpty = (text) => <p className="text-gray-400 italic text-sm">{text}</p>;
   const formatPhone = (phone) => phone ? phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : 'N/A';
@@ -14,6 +22,36 @@ export function SupplementalSection({ appData }) {
   const hasRevoked = appData['revoked-licenses'] === 'yes';
   const hasSuspended = appData['driving-convictions'] === 'yes';
   const hasDrugConviction = appData['drug-alcohol-convictions'] === 'yes';
+
+  // --- VOE LOGIC ---
+  const handleVerifyRequest = async (employer, index) => {
+      // 1. Get Email (Prompt Recruiter since it wasn't collected from driver)
+      const recipientEmail = prompt(`Enter email address for verification at ${employer.name}:`);
+      
+      if (!recipientEmail) return; // User cancelled
+      if (!recipientEmail.includes('@')) {
+          showError("Invalid email address.");
+          return;
+      }
+
+      setVerifyingIndex(index);
+
+      try {
+          const sendVOE = httpsCallable(functions, 'sendVOERequest');
+          await sendVOE({
+              companyId,
+              applicationId,
+              employer,
+              recipientEmail
+          });
+          showSuccess(`Verification sent to ${recipientEmail}`);
+      } catch (error) {
+          console.error("VOE Error:", error);
+          showError(error.message || "Failed to send request.");
+      } finally {
+          setVerifyingIndex(null);
+      }
+  };
 
   return (
     <div className="space-y-6">
@@ -175,19 +213,36 @@ export function SupplementalSection({ appData }) {
           </div>
       </Section>
 
-      {/* --- 4. EMPLOYMENT HISTORY --- */}
-      <Section title="Employment History">
+      {/* --- 4. EMPLOYMENT HISTORY (VOE ENABLED) --- */}
+      <Section title="Employment History & Verification">
           {appData.employers && appData.employers.length > 0 ? (
               <div className="space-y-4">
                   {appData.employers.map((emp, index) => (
-                      <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2">
                               <h4 className="font-bold text-gray-900 flex items-center gap-2">
                                   <Truck size={16} className="text-gray-400"/> {emp.name}
                               </h4>
-                              <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-1 border rounded mt-1 sm:mt-0">
-                                  {emp.dates}
-                              </span>
+                              
+                              <div className="flex items-center gap-2 mt-1 sm:mt-0">
+                                  <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-1 border rounded">
+                                      {emp.dates}
+                                  </span>
+                                  {/* VOE Button */}
+                                  <button 
+                                      onClick={() => handleVerifyRequest(emp, index)}
+                                      disabled={verifyingIndex === index}
+                                      className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition disabled:opacity-50"
+                                      title="Request Verification of Employment"
+                                  >
+                                      {verifyingIndex === index ? (
+                                          <Loader2 size={12} className="animate-spin"/>
+                                      ) : (
+                                          <Send size={12}/>
+                                      )}
+                                      Verify
+                                  </button>
+                              </div>
                           </div>
                           <div className="text-sm text-gray-600 grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <p><span className="font-medium">Location:</span> {emp.city}, {emp.state}</p>
