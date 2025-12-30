@@ -57,6 +57,8 @@ export function ApplicationInfo({
       {/* 4. Bottom Section (Questions, History, Signature) */}
       <SupplementalSection 
         appData={appData}
+        companyId={companyId}          // <--- Added prop
+        applicationId={applicationId}  // <--- Added prop
       />
 
     </div>
