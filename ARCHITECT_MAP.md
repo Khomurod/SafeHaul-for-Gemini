@@ -9,65 +9,65 @@ SafeHaul uses three distinct patterns to talk to the backend:
 - **The Secret**: Security rules (`firestore.rules`) act as the "invisible gatekeeper," ensuring recruiters only see their own company's data.
 
 ### B. Heavy Processing (Callable Functions)
-- **Used for**: `distributeDailyLeads`, `createPortalUser`, `moveApplication`, `bulkAssignLeads`.
+- **Used for**: `distributeDailyLeads`, `createPortalUser`, `moveApplication`, `sendVOERequest` (New).
 - **How it works**: The Frontend triggers these via `httpsCallable`. The Backend runs the complex logic and returns a success/fail message.
 
-### C. Automated Triggers (Cloud Triggers)
-- **Used for**: `sealDocument`, `onApplicationSubmitted`.
-- **How it works**: The Frontend simply writes a document to Firestore (e.g., setting status to `pending_seal`). The Backend "sees" this change automatically and starts the PDF generation process.
-- **Dependency**: The `onApplicationSubmitted` trigger **strictly requires** the `signature` field to follow the `TEXT_SIGNATURE:[Name]` format (or be a valid image URL) to successfully generate the PDF.
+### C. Automated Triggers & Schedules
+- **Triggers**: 
+    - `onApplicationSubmitted`: Finalizes the app and prepares PDF data.
+    - `sealDocument`: Generates PDF (Deprecated, handled on-fly).
+- **Scheduled Jobs**: 
+    - `checkDriverExpirations`: Runs daily to flag expiring CDLs/MedCards.
+    - `distributeDailyLeadsScheduled`: Runs daily to shuffle leads.
 
-## 2. Key Data Models
-To keep the system in sync, the Frontend expects specific fields:
-- **Companies**: Must have `planType` ('free'/'paid') to determine lead limits.
-- **Leads**: Must have `unavailableUntil` (timestamp) to manage the shuffle logic.
-- **Signing Requests**: Must have a `fields` array containing `xPosition`, `yPosition`, etc., as percentages.
+## 2. Key Data Models & Schemas
 
-### **D. Application Schema (Compliance Critical)**
-The Application object (`companies/{id}/applications/{appId}`) is the single source of truth for the PDF Generator and Admin Dashboard.
-* **Identity**: `suffix` and `otherName` (Aliases) are mandatory display fields for background checks.
+### A. Application Schema (Compliance Critical)
+The Application object (`companies/{id}/applications/{appId}`) is the single source of truth.
+* **Identity**: `suffix` and `otherName` (Aliases) are mandatory.
 * **Signature**: Must be stored as `TEXT_SIGNATURE:John Doe` for typed signatures.
-* **Compliance Logs**:
-    * `hosDay1` through `hosDay7` (Hours of Service).
-    * `lastRelievedDate` & `lastRelievedTime`.
-    * `safetyDeclarations` (flags for `revoked-licenses`, `driving-convictions`, `drug-alcohol-convictions`).
+* **Dates**: `cdlExpiration`, `medCardExpiration`, `twicExpiration`, and `dob` **MUST** be stored as Firestore `Timestamp` objects (not strings) to enable the Compliance Monitor.
+* **Employment**: The `employers` array MUST now include `email`, `contactPerson`, and `phone` to power the VOE engine.
+
+### B. Verification Requests Schema
+A dedicated collection (`verification_requests/{requestId}`) manages external VOE access.
+* **Security**: Accessible publicly ONLY via `requestId`.
+* **Fields**: `applicationId`, `recipientEmail`, `employerName`, `status` ('Pending'/'Completed'), `verifiedStartDate`, `verifiedEndDate`, `signatureName`.
 
 ## 3. The "Dealer" Distribution Engine (CRITICAL)
 **DO NOT MODIFY THE LOGIC BELOW WITHOUT UNDERSTANDING THE "GHOST LEAD" PROTECTION.**
 
-The Lead Distribution system (`functions/leadLogic.js`) uses a **"Dealer Architecture"**, not a simple shuffle. It operates on strict rules to prevent crashes and ensure quota delivery.
+The Lead Distribution system (`functions/leadLogic.js`) uses a **"Dealer Architecture"**.
 
 ### A. The "Dealer" Logic
-1.  **Iterative Dealing**: Instead of loading all leads into memory, the system iterates through companies one by one.
-2.  **Transactional Assignment**: Every lead assignment is a standalone Firestore Transaction.
-    * **Ghost Protection**: The transaction strictly checks `doc.exists` before writing. If a lead is missing (Ghost Lead), the transaction fails gracefully, logs a warning, and the Dealer immediately grabs the *next* candidate. **This prevents the entire batch from crashing.**
-    * **Anti-Snipe**: Checks `unavailableUntil` inside the transaction to ensure no double-booking.
-3.  **Pre-Flight Validation**: The Dealer assumes data validity. The Frontend (`DriverApplicationWizard`) acts as the primary firewall, preventing "Incomplete Leads" (missing signatures or HOS logs) from ever entering the distribution pool.
+1.  **Iterative Dealing**: Iterates through companies one by one.
+2.  **Transactional Assignment**: Checks `doc.exists` and `unavailableUntil` to prevent race conditions.
+3.  **Pre-Flight Validation**: The Frontend acts as the primary firewall.
 
 ### B. Strict Quota Rules
-The system calculates quotas in this specific order of priority:
-1.  **Plan Type**:
-    * `Paid` Plan = **200 Leads**
-    * `Free` Plan = **50 Leads**
-2.  **Manual Override**: The `dailyLeadQuota` field is ONLY used if it is **higher** than the Plan Default (e.g., a VIP set to 500). If `dailyLeadQuota` is 50 but the plan is Paid, the system forces **200**.
-
-### C. Frontend Resolution
-* **Pathing**: The Backend stores leads in `companies/{CompanyUID}/leads`.
-* **Slug Resolution**: The Frontend URL uses a "Slug" (e.g., `/dashboard/ray-star-llc`). The Frontend (`useCompanyDashboard.js`) **MUST** resolve this Slug to the actual `CompanyUID` before querying. Failure to do this will result in an empty dashboard even if leads exist.
+1.  **Plan Type**: `Paid` (200 Leads) vs `Free` (50 Leads).
+2.  **Overrides**: `dailyLeadQuota` overrides Plan limits ONLY if higher.
 
 ## 4. Frontend View Sync Strategy (The "Mirror Law")
-To prevent "Hidden Data" liability, the Admin Dashboard must mirror 100% of the input fields collected in the Driver App.
+To prevent liability, the Admin Dashboard must mirror 100% of the input fields collected in the Driver App.
 
-### A. The Critical Path Mapping
-Any field added to the **Driver Input** (Left) MUST be rendered in the **Admin Output** (Right).
-
-| Driver Input Component | Admin Render Component | Critical Data Points |
+### Critical Path Mapping
+| Driver Input Component | Admin Render Component | Data Points |
 | :--- | :--- | :--- |
-| `Step1_Contact.jsx` | `PersonalInfoSection.jsx` | Suffix, Aliases (Known By Other Name) |
-| `Step3_License.jsx` | `SupplementalSection.jsx` | TWIC Card, Expiration |
-| `Step4_Violations.jsx` | `SupplementalSection.jsx` | **Red Flags:** License Revoked, Suspended |
-| `Step7_General.jsx` | `SupplementalSection.jsx` | **HOS Table:** 7-Day Log, Last Relieved Time |
-| `BusinessInfoSection` | `SupplementalSection.jsx` | Owner Operator Business Name, EIN |
+| `Step1_Contact.jsx` | `PersonalInfoSection.jsx` | Suffix, Aliases |
+| `Step3_License.jsx` | `SupplementalSection.jsx` | TWIC, Expiration (Alerts Enabled) |
+| `Step4_Violations.jsx` | `SupplementalSection.jsx` | **Red Flags:** Revoked, Suspended |
+| `Step7_General.jsx` | `SupplementalSection.jsx` | **HOS Table:** 7-Day Log |
+| `Step6_Employment.jsx` | `SupplementalSection.jsx` | **VOE:** "Verify" Button, Email Logic |
 
-### B. Validation Strategy
-* **Submission Gate**: The `handleFinalSubmit` function in `PublicApplyHandler.jsx` and `DriverApplicationWizard.jsx` MUST validate that `signatureName` exists and `final-certification` is checked before allowing the write to Firestore.
+## 5. Compliance Engine
+Automated systems protecting carrier liability.
+
+### A. Expiry Monitor
+* **Function**: `checkDriverExpirations` (Daily).
+* **Logic**: Scans all drivers. If `cdlExpiration` < 30 days, adds `complianceAlerts`.
+* **Feed Mechanism**: `DQFileTab.jsx` performs a "Dual Write" -> when a user uploads a new CDL/Med Card, it automatically updates the `expirationDate` on the Driver Profile to keep the monitor accurate.
+
+### B. Verification of Employment (VOE)
+* **Flow**: Recruiter clicks "Verify" ➝ `sendVOERequest` (Cloud Function) ➝ Email sent to Employer ➝ Employer opens Public Portal ➝ Signs ➝ Database Updated.
+* **Smart Logic**: The system auto-detects employer emails from the driver's application.
