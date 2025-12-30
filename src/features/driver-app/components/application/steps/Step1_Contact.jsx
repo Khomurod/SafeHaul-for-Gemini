@@ -1,52 +1,19 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import InputField from '@shared/components/form/InputField';
 import RadioGroup from '@shared/components/form/RadioGroup';
 import { useUtils } from '@shared/hooks/useUtils';
-import { useData } from '@/context/DataContext';
-import { AlertCircle } from 'lucide-react';
+import { YES_NO_OPTIONS } from '@/config/form-options';
+import { User, MapPin, Phone, FileText } from 'lucide-react';
 
-const Step1_Contact = ({ formData, updateFormData, onNavigate, onPartialSubmit }) => {
+const Step1_Contact = ({ formData, updateFormData, onNavigate }) => {
     const { states } = useUtils();
-    const { currentCompanyProfile } = useData();
-    const currentCompany = currentCompanyProfile;
 
-    // --- Configuration Helper ---
-    const getConfig = (fieldId, defaultReq = true) => {
-        const config = currentCompany?.applicationConfig?.[fieldId];
-        return {
-            hidden: config?.hidden || false,
-            required: config !== undefined ? config.required : defaultReq
-        };
-    };
-
-    const ssnConfig = getConfig('ssn', true);
-    const dobConfig = getConfig('dob', true);
-    const historyConfig = getConfig('addressHistory', true);
-    const referralConfig = getConfig('referralSource', false);
-
-    // --- Logic ---
-    const residenceThreeYears = formData['residence-3-years'];
-    // Only show previous address if user said "No" AND history is not hidden globally
-    const showPreviousAddress = residenceThreeYears === 'no' && !historyConfig.hidden;
-    const knownByOtherName = formData['known-by-other-name'] === 'yes';
-
-    useEffect(() => {
-        if (formData['known-by-other-name'] === undefined) {
-             updateFormData('known-by-other-name', 'no');
-        }
-    }, [formData, updateFormData]);
-
-    const yesNoOptions = [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }];
-
-    const handleOtherNameToggle = (e) => {
-        updateFormData('known-by-other-name', e.target.checked ? 'yes' : 'no');
-    };
-
-    const handleStateChange = (name, value) => {
+    const handleChange = (name, value) => {
         updateFormData(name, value);
     };
 
     const handleContinue = () => {
+        // 1. Basic HTML5 Validation
         const form = document.getElementById('driver-form');
         if (form) {
             if (!form.checkValidity()) {
@@ -54,211 +21,302 @@ const Step1_Contact = ({ formData, updateFormData, onNavigate, onPartialSubmit }
                 return;
             }
         }
+
+        // 2. Age Validation (FMCSA Requirement)
+        if (formData.dob) {
+            if (!validateAge(formData.dob)) {
+                alert("You must be at least 21 years old to apply.");
+                return;
+            }
+        }
+
         onNavigate('next');
     };
 
-    // --- Soft Validation Helpers ---
-    const hasPhoneWarning = (val) => val && val.length > 5 && !/^\D?(\d{3})\D?\D?(\d{3})\D?(\d{4})$/.test(val);
-    const hasEmailWarning = (val) => val && val.length > 5 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
-    const hasSSNWarning = (val) => val && val.length > 7 && !/^\d{3}-?\d{2}-?\d{4}$/.test(val);
-    const hasZipWarning = (val) => val && val.length > 0 && !/^\d{5}(-\d{4})?$/.test(val);
-
-    const ValidationWarning = ({ message }) => (
-        <div className="flex items-center gap-1.5 mt-1 text-amber-600 text-xs font-medium animate-in fade-in slide-in-from-top-1">
-            <AlertCircle size={12} />
-            <span>{message}</span>
-        </div>
-    );
+    const validateAge = (dateString) => {
+        const today = new Date();
+        const birthDate = new Date(dateString);
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+        return age >= 21;
+    };
 
     return (
-        <div id="page-1" className="form-step space-y-6">
+        <div id="page-1" className="space-y-8 animate-in fade-in duration-500">
+            
+            {/* Header */}
+            <div className="space-y-2">
+                <h3 className="text-2xl font-bold text-gray-900">Personal Information</h3>
+                <p className="text-gray-600">
+                    Please provide your legal details as they appear on your Commercial Driver's License (CDL).
+                </p>
+            </div>
 
-            {/* --- Personal Details --- */}
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Step 1 of 9: Personal Information</legend>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <InputField label="First Name" id="first-name" name="firstName" required={true} value={formData.firstName} onChange={updateFormData} placeholder="John" />
-                    <InputField label="Middle Name" id="middle-name" name="middleName" value={formData.middleName} onChange={updateFormData} placeholder="M" />
-                    <InputField label="Last Name" id="last-name" name="lastName" required={true} value={formData.lastName} onChange={updateFormData} placeholder="Doe" />
-                    <InputField label="Suffix" id="suffix" name="suffix" value={formData.suffix} onChange={updateFormData} placeholder="Jr." />
-                </div>
-
-                <div className="flex items-center pt-2 border-t border-gray-200">
-                    <input 
-                        id="known-by-other-name" 
-                        name="known-by-other-name" 
-                        type="checkbox"
-                        checked={knownByOtherName}
-                        onChange={handleOtherNameToggle}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <label htmlFor="known-by-other-name" className="ml-2 block text-sm font-medium text-gray-800">Known by other name(s)?</label>
-                </div>
-
-                {knownByOtherName && (
-                    <div id="other-name-field" className="pt-2"> 
-                        <InputField label="Other Name(s)" id="other-name" name="otherName" value={formData.otherName} onChange={updateFormData} placeholder="e.g., Johnny" />
+            {/* CARD 1: IDENTITY */}
+            <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-2">
+                    <div className="p-2 bg-blue-50 rounded-lg text-blue-600">
+                        <User size={20} />
                     </div>
-                )}
+                    <h4 className="text-lg font-bold text-gray-900">Legal Identity</h4>
+                </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {/* SSN Field - Configurable */}
-                    {!ssnConfig.hidden && (
+                <div className="space-y-6">
+                    <InputField 
+                        label="First Name" 
+                        id="firstName" 
+                        name="firstName" 
+                        value={formData.firstName} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="Legal First Name"
+                        className="w-full"
+                    />
+                    
+                    <InputField 
+                        label="Middle Name" 
+                        id="middleName" 
+                        name="middleName" 
+                        value={formData.middleName} 
+                        onChange={handleChange} 
+                        placeholder="Middle Name (Optional)"
+                        className="w-full"
+                    />
+                    
+                    <InputField 
+                        label="Last Name" 
+                        id="lastName" 
+                        name="lastName" 
+                        value={formData.lastName} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="Legal Last Name"
+                        className="w-full"
+                    />
+
+                    <InputField 
+                        label="Suffix" 
+                        id="suffix" 
+                        name="suffix" 
+                        value={formData.suffix} 
+                        onChange={handleChange} 
+                        placeholder="Jr, Sr, III (Optional)"
+                        className="w-full"
+                    />
+
+                    <div className="pt-4 border-t border-gray-100">
+                        <RadioGroup 
+                            label="Are you known by any other name?" 
+                            name="known-by-other-name" 
+                            options={YES_NO_OPTIONS}
+                            value={formData['known-by-other-name']} 
+                            onChange={(name, value) => handleChange(name, value)}
+                        />
+                        
+                        {formData['known-by-other-name'] === 'yes' && (
+                            <div className="mt-4 animate-in slide-in-from-top-2">
+                                <InputField 
+                                    label="Other Name(s) Used" 
+                                    id="otherName" 
+                                    name="otherName" 
+                                    value={formData.otherName} 
+                                    onChange={handleChange} 
+                                    required
+                                    placeholder="Maiden name, alias, etc."
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 pt-4 border-t border-gray-100">
                         <div>
                             <InputField 
                                 label="Social Security Number (SSN)" 
                                 id="ssn" 
                                 name="ssn" 
-                                required={ssnConfig.required} 
                                 value={formData.ssn} 
-                                onChange={updateFormData} 
-                                placeholder="XXX-XX-XXXX" 
+                                onChange={handleChange} 
+                                required 
+                                placeholder="XXX-XX-XXXX"
                             />
-                            {hasSSNWarning(formData.ssn) && <ValidationWarning message="Format usually matches XXX-XX-XXXX" />}
+                            <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                  <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                                </svg>
+                                Encrypted securely for background check purposes only.
+                            </p>
                         </div>
-                    )}
-
-                    {/* DOB Field - Configurable */}
-                    {!dobConfig.hidden && (
-                        <InputField 
-                            label="Date of Birth" 
-                            id="dob" 
-                            name="dob" 
-                            type="date" 
-                            required={dobConfig.required} 
-                            value={formData.dob} 
-                            onChange={updateFormData} 
-                        />
-                    )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
-                    <div>
-                        <InputField label="Phone" id="phone" name="phone" type="tel" required={true} value={formData.phone} onChange={updateFormData} placeholder="(555) 555-5555" />
-                        {hasPhoneWarning(formData.phone) && <ValidationWarning message="Please double-check phone format." />}
-                    </div>
-                    <div>
-                        <InputField label="Email" id="email" name="email" type="email" required={true} value={formData.email} onChange={updateFormData} placeholder="you@example.com" />
-                        {hasEmailWarning(formData.email) && <ValidationWarning message="Email address looks incomplete." />}
+                        
+                        <div>
+                            <InputField 
+                                label="Date of Birth" 
+                                id="dob" 
+                                name="dob" 
+                                type="date" 
+                                value={formData.dob} 
+                                onChange={handleChange} 
+                                required 
+                            />
+                            <p className="text-xs text-gray-500 mt-1.5">
+                                Must be at least 21 years of age to operate interstate.
+                            </p>
+                        </div>
                     </div>
                 </div>
+            </section>
 
-                <RadioGroup 
-                    label="Can we send you SMS messages?" 
-                    name="sms-consent" 
-                    options={yesNoOptions}
-                    value={formData['sms-consent']} 
-                    onChange={updateFormData}
-                    horizontal={true}
-                />
-
-                {/* Referral Source - Configurable */}
-                {!referralConfig.hidden && (
-                    <div className="pt-4 border-t border-gray-200">
-                        <InputField 
-                            label="How did you hear about us?" 
-                            id="referral-source" 
-                            name="referralSource" 
-                            required={referralConfig.required} 
-                            value={formData.referralSource} 
-                            onChange={updateFormData} 
-                            placeholder="e.g. Facebook, Indeed, Friend..." 
-                        />
+            {/* CARD 2: CONTACT */}
+            <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-2">
+                    <div className="p-2 bg-green-50 rounded-lg text-green-600">
+                        <Phone size={20} />
                     </div>
-                )}
-            </fieldset>
-
-            {/* --- Current Address --- */}
-            <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
-                <legend className="text-lg font-semibold text-gray-800 px-2">Current Address</legend>
-                <div>
-                     <InputField label="Address 1" id="street" name="street" required={true} value={formData.street} onChange={updateFormData} placeholder="123 Main St" />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <InputField label="City" id="city" name="city" required={true} value={formData.city} onChange={updateFormData} placeholder="Anytown" />
-                    <div>
-                        <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">State <span className="text-red-500">*</span></label>
-                        <select 
-                            id="state" 
-                            name="state" 
-                            required 
-                            value={formData.state || ""} 
-                            onChange={(e) => handleStateChange(e.target.name, e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
-                        >
-                            <option value="" disabled>Select State</option>
-                            {states.map(state => <option key={state} value={state}>{state}</option>)}
-                        </select>
-                    </div>
-                    <div>
-                        <InputField label="ZIP Code" id="zip" name="zip" required={true} value={formData.zip} onChange={updateFormData} placeholder="12345" />
-                        {hasZipWarning(formData.zip) && <ValidationWarning message="Standard ZIP is 5 digits." />}
-                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Contact Details</h4>
                 </div>
 
-                {/* Only show "3 Years" question if history is not hidden */}
-                {!historyConfig.hidden && (
-                    <RadioGroup 
-                        label="Lived at this residence for 3 years or more?"
-                        name="residence-3-years" 
-                        options={yesNoOptions}
-                        value={residenceThreeYears} 
-                        onChange={updateFormData}
-                        horizontal={true}
-                        required={historyConfig.required}
+                <div className="space-y-6">
+                    <InputField 
+                        label="Phone Number" 
+                        id="phone" 
+                        name="phone" 
+                        type="tel" 
+                        value={formData.phone} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="(555) 555-5555"
                     />
-                )}
-            </fieldset>
 
-            {/* --- Previous Address (Conditional) --- */}
-            {showPreviousAddress && (
-                <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6 animate-in fade-in">
-                    <legend className="text-lg font-semibold text-gray-800 px-2">Previous Address (Past 3 Years)</legend>
-                    <p className="text-sm text-gray-600">Please list your most recent previous address to cover the past 3 years.</p>
-                    <div>
-                        <InputField label="Address 1" id="prev-street" name="prevStreet" value={formData.prevStreet} onChange={updateFormData} placeholder="456 Old St" required={historyConfig.required} />
+                    <InputField 
+                        label="Email Address" 
+                        id="email" 
+                        name="email" 
+                        type="email" 
+                        value={formData.email} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="name@example.com"
+                    />
+                </div>
+            </section>
+
+            {/* CARD 3: ADDRESS */}
+            <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-2">
+                    <div className="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                        <MapPin size={20} />
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                        <InputField label="City" id="prev-city" name="prevCity" value={formData.prevCity} onChange={updateFormData} placeholder="Othertown" required={historyConfig.required} />
-                        <div>
-                            <label htmlFor="prev-state" className="block text-sm font-medium text-gray-700 mb-1">State {historyConfig.required && <span className="text-red-500">*</span>}</label>
+                    <h4 className="text-lg font-bold text-gray-900">Current Residence</h4>
+                </div>
+
+                <div className="space-y-6">
+                    <InputField 
+                        label="Street Address" 
+                        id="street" 
+                        name="street" 
+                        value={formData.street} 
+                        onChange={handleChange} 
+                        required 
+                        placeholder="123 Main St"
+                    />
+
+                    <div className="space-y-6">
+                         <InputField 
+                            label="City" 
+                            id="city" 
+                            name="city" 
+                            value={formData.city} 
+                            onChange={handleChange} 
+                            required 
+                        />
+
+                        <div className="space-y-2">
+                            <label htmlFor="state" className="block text-sm font-bold text-gray-900">
+                                State <span className="text-red-500">*</span>
+                            </label>
                             <select 
-                                id="prev-state" 
-                                name="prevState" 
-                                value={formData.prevState || ""} 
-                                onChange={(e) => handleStateChange(e.target.name, e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
-                                required={historyConfig.required}
-                             >
+                                id="state" 
+                                name="state" 
+                                required 
+                                value={formData.state || ""} 
+                                onChange={(e) => handleChange(e.target.name, e.target.value)} 
+                                className="w-full p-4 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                            >
                                 <option value="" disabled>Select State</option>
-                                {states.map(state => <option key={state} value={state}>{state}</option>)}
-                             </select>
+                                {states.map(state => (
+                                    <option key={state} value={state}>{state}</option>
+                                ))}
+                            </select>
                         </div>
-                        <div>
-                            <InputField label="ZIP Code" id="prev-zip" name="prevZip" value={formData.prevZip} onChange={updateFormData} placeholder="54321" required={historyConfig.required} />
-                            {hasZipWarning(formData.prevZip) && <ValidationWarning message="Standard ZIP is 5 digits." />}
-                        </div>
-                    </div>
-                </fieldset>
-            )}
 
-            {/* --- Buttons --- */}
-            <div className="flex flex-col sm:flex-row sm:justify-end pt-6 space-y-3 sm:space-y-0 sm:space-x-4">
-                <button 
-                    type="button" 
-                    name="submit-partial" 
-                    onClick={onPartialSubmit}
-                    className="w-full sm:w-auto px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-200"
-                >
-                    Save as Draft
-                </button>
+                        <InputField 
+                            label="Zip Code" 
+                            id="zip" 
+                            name="zip" 
+                            value={formData.zip} 
+                            onChange={handleChange} 
+                            required 
+                            placeholder="12345"
+                        />
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-100">
+                        <RadioGroup 
+                            label="Have you lived at this address for 3 years?" 
+                            name="residence-3-years" 
+                            options={YES_NO_OPTIONS}
+                            value={formData['residence-3-years']} 
+                            onChange={(name, value) => handleChange(name, value)}
+                        />
+                        
+                        {formData['residence-3-years'] === 'no' && (
+                            <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200 animate-in fade-in">
+                                <p className="text-sm font-bold text-gray-700 mb-4 uppercase tracking-wide">Previous Address</p>
+                                <div className="space-y-4">
+                                    <InputField label="Previous Street" id="prevStreet" name="prevStreet" value={formData.prevStreet} onChange={handleChange} required />
+                                    <InputField label="Previous City" id="prevCity" name="prevCity" value={formData.prevCity} onChange={handleChange} required />
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-gray-700">Previous State</label>
+                                        <select name="prevState" value={formData.prevState || ""} onChange={(e) => handleChange("prevState", e.target.value)} required className="w-full p-3 border border-gray-300 rounded-lg bg-white"><option value="">Select State</option>{states.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                    </div>
+                                    <InputField label="Previous Zip" id="prevZip" name="prevZip" value={formData.prevZip} onChange={handleChange} required />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </section>
+
+             {/* CARD 4: REFERRAL */}
+             <section className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-gray-200 space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-2">
+                    <div className="p-2 bg-purple-50 rounded-lg text-purple-600">
+                        <FileText size={20} />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900">Application Source</h4>
+                </div>
+                <div className="space-y-6">
+                     <InputField 
+                        label="How did you hear about us?" 
+                        id="referralSource" 
+                        name="referralSource" 
+                        value={formData.referralSource} 
+                        onChange={handleChange} 
+                        placeholder="e.g., Facebook, Indeed, Friend..."
+                    />
+                </div>
+            </section>
+
+            {/* Navigation */}
+            <div className="flex justify-end pt-8 pb-10">
                 <button 
                     type="button" 
                     onClick={handleContinue}
-                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
+                    className="w-full sm:w-auto px-10 py-4 bg-blue-600 text-white font-bold text-lg rounded-xl shadow-lg hover:bg-blue-700 hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-blue-200 transition-all transform active:scale-95"
                 >
-                    Continue
+                    Save & Continue
                 </button>
             </div>
         </div>
