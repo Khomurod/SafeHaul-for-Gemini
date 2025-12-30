@@ -23,7 +23,22 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
 
     const empHistoryConfig = getConfig('employmentHistory', true);
 
-    const initialEmployer = { name: '', street: '', city: '', state: '', phone: '', position: '', dates: '', reason: '' };
+    // FIX: Added 'contactPerson', 'email', 'fax' for VOE Automation
+    const initialEmployer = { 
+        name: '', 
+        street: '', 
+        city: '', 
+        state: '', 
+        zip: '', 
+        phone: '', 
+        fax: '', 
+        email: '', 
+        contactPerson: '', 
+        position: '', 
+        dates: '', 
+        reason: '' 
+    };
+    
     const initialSchool = { name: '', dates: '', location: '' };
     const initialUnemployment = { startDate: '', endDate: '', details: '' };
     const initialMilitary = { branch: '', start: '', end: '', rank: '', heavyEq: 'no', honorable: 'yes', explanation: '' };
@@ -40,23 +55,140 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
     };
 
     const renderEmployerRow = (index, item, handleChange) => (
-        <div key={index} className="space-y-3">
-            <InputField label="Company Name" id={'emp-name-' + index} name="name" value={item.name} onChange={handleChange} required={empHistoryConfig.required} />
-            <InputField label="Street Address" id={'emp-street-' + index} name="street" value={item.street} onChange={handleChange} required={empHistoryConfig.required} />
+        <div key={index} className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200 relative">
+            <div className="absolute top-2 right-2 text-xs text-gray-400 font-bold uppercase tracking-wider">
+                Employer #{index + 1}
+            </div>
+
+            {/* 1. Company Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField 
+                    label="Company Name" 
+                    id={'emp-name-' + index} 
+                    name="name" 
+                    value={item.name} 
+                    onChange={handleChange} 
+                    required={empHistoryConfig.required} 
+                    placeholder="ABC Trucking Inc."
+                />
+                <InputField 
+                    label="Street Address" 
+                    id={'emp-street-' + index} 
+                    name="street" 
+                    value={item.street} 
+                    onChange={handleChange} 
+                    required={empHistoryConfig.required} 
+                    placeholder="123 Haul St"
+                />
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <InputField label="City" id={'emp-city-' + index} name="city" value={item.city} onChange={handleChange} required={empHistoryConfig.required} />
+                <InputField 
+                    label="City" 
+                    id={'emp-city-' + index} 
+                    name="city" 
+                    value={item.city} 
+                    onChange={handleChange} 
+                    required={empHistoryConfig.required} 
+                />
                 <div>
-                    <label htmlFor={'emp-state-' + index} className="block text-sm font-medium text-gray-700 mb-1">State {empHistoryConfig.required && <span className="text-red-500">*</span>}</label>
-                    <select id={'emp-state-' + index} name="state" required={empHistoryConfig.required} value={item.state || ""} onChange={(e) => handleChange(e.target.name, e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700">
+                    <label htmlFor={'emp-state-' + index} className="block text-sm font-medium text-gray-700 mb-1">
+                        State {empHistoryConfig.required && <span className="text-red-500">*</span>}
+                    </label>
+                    <select 
+                        id={'emp-state-' + index} 
+                        name="state" 
+                        required={empHistoryConfig.required} 
+                        value={item.state || ""} 
+                        onChange={(e) => handleChange(e.target.name, e.target.value)} 
+                        className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-gray-700"
+                    >
                         <option value="" disabled>Select State</option>
                         {states.map(state => <option key={state} value={state}>{state}</option>)}
                     </select>
                 </div>
-                <InputField label="Phone" id={'emp-phone-' + index} name="phone" type="tel" value={item.phone} onChange={handleChange} />
+                <InputField 
+                    label="Zip Code" 
+                    id={'emp-zip-' + index} 
+                    name="zip" 
+                    value={item.zip} 
+                    onChange={handleChange} 
+                    placeholder="12345"
+                />
             </div>
-            <InputField label="Position Held" id={'emp-position-' + index} name="position" value={item.position} onChange={handleChange} />
-            <InputField label="Dates Employed (mm/yyyy - mm/yyyy)" id={'emp-dates-' + index} name="dates" value={item.dates} onChange={handleChange} />
-            <InputField label="Reason for Leaving" id={'emp-reason-' + index} name="reason" value={item.reason} onChange={handleChange} />
+
+            {/* 2. Verification Contact Info (Critical for VOE) */}
+            <div className="bg-blue-50 p-3 rounded-md border border-blue-100">
+                <label className="block text-xs font-bold text-blue-800 uppercase mb-3">
+                    Verification Contact (Required for Background Check)
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <InputField 
+                        label="Contact Person / Supervisor" 
+                        id={'emp-contact-' + index} 
+                        name="contactPerson" 
+                        value={item.contactPerson} 
+                        onChange={handleChange} 
+                        placeholder="Jane Doe (Safety Manager)"
+                    />
+                    <InputField 
+                        label="Email (For Verification Request)" 
+                        id={'emp-email-' + index} 
+                        name="email" 
+                        type="email"
+                        value={item.email} 
+                        onChange={handleChange} 
+                        placeholder="safety@abctrucking.com"
+                        required={true} // Mandatory for Automation
+                    />
+                    <InputField 
+                        label="Phone" 
+                        id={'emp-phone-' + index} 
+                        name="phone" 
+                        type="tel" 
+                        value={item.phone} 
+                        onChange={handleChange} 
+                        required={true}
+                    />
+                    <InputField 
+                        label="Fax" 
+                        id={'emp-fax-' + index} 
+                        name="fax" 
+                        type="tel" 
+                        value={item.fax} 
+                        onChange={handleChange} 
+                        placeholder="Optional"
+                    />
+                </div>
+            </div>
+
+            {/* 3. Job Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField 
+                    label="Position Held" 
+                    id={'emp-position-' + index} 
+                    name="position" 
+                    value={item.position} 
+                    onChange={handleChange} 
+                />
+                <InputField 
+                    label="Dates Employed (mm/yyyy - mm/yyyy)" 
+                    id={'emp-dates-' + index} 
+                    name="dates" 
+                    value={item.dates} 
+                    onChange={handleChange} 
+                    placeholder="01/2020 - 05/2023"
+                />
+                <div className="sm:col-span-2">
+                    <InputField 
+                        label="Reason for Leaving" 
+                        id={'emp-reason-' + index} 
+                        name="reason" 
+                        value={item.reason} 
+                        onChange={handleChange} 
+                    />
+                </div>
+            </div>
         </div>
     );
 
