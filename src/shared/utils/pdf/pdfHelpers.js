@@ -1,91 +1,122 @@
-// src/shared/utils/pdf/pdfHelpers.js
-import { PDF_CONFIG, TABLE_SECOND_COL_WIDTH } from './pdfConfig';
-import { getFieldValue } from '@shared/utils/helpers';
+import { PDF_THEME } from './pdfStyles';
 
-// Helper to check if we need a new page based on content height
-export function checkPageBreak(doc, y, requiredHeight = 0) {
-    if (y + requiredHeight > PDF_CONFIG.PAGE_HEIGHT - PDF_CONFIG.MARGIN) {
+/**
+ * Checks if there is enough space on the page for a new element.
+ * If not, adds a new page and resets Y.
+ */
+export const checkPageBreak = (doc, currentY, requiredSpace = 20) => {
+    if (currentY + requiredSpace > PDF_THEME.LAYOUT.PAGE_HEIGHT - PDF_THEME.LAYOUT.MARGIN) {
         doc.addPage();
-        return PDF_CONFIG.MARGIN; // Reset y to top margin
+        return PDF_THEME.LAYOUT.MARGIN + 25; // Reset Y (account for header)
     }
-    return y;
-}
+    return currentY;
+};
 
-// Helper to draw a section header row
-export function addTableHeader(doc, y, title) {
-    y = checkPageBreak(doc, y, PDF_CONFIG.LINE_HEIGHT * 1.5);
+/**
+ * Draws a "Section Card" container with a colored header.
+ * @param {string} title - The section title (e.g. "PERSONAL INFORMATION")
+ * @param {function} renderContent - Callback to render content inside the box
+ */
+export const drawSectionCard = (doc, startY, title, renderContent) => {
+    // 1. Check space for at least the header + some content
+    let y = checkPageBreak(doc, startY, 40);
+    const startX = PDF_THEME.LAYOUT.MARGIN;
+    const width = PDF_THEME.LAYOUT.PAGE_WIDTH - (PDF_THEME.LAYOUT.MARGIN * 2);
 
-    doc.setFont(PDF_CONFIG.FONT.BOLD, "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(0, 0, 0);
-    doc.setFillColor(PDF_CONFIG.TABLE_HEADER_FILL_COLOR);
-    doc.setDrawColor(PDF_CONFIG.TABLE_LINE_COLOR);
+    // 2. Draw Section Header (Colored Bar)
+    doc.setFillColor(PDF_THEME.COLORS.BG_SECTION);
+    doc.setDrawColor(PDF_THEME.COLORS.BORDER);
+    doc.rect(startX, y, width, 10, 'F'); // Filled gray/blue background
 
-    // Draw filled rectangle for header
-    doc.rect(PDF_CONFIG.MARGIN, y, PDF_CONFIG.TABLE_FIRST_COL_WIDTH + TABLE_SECOND_COL_WIDTH, PDF_CONFIG.LINE_HEIGHT * 1.5, 'FD');
+    // Title Text
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'bold');
+    doc.setFontSize(PDF_THEME.SIZES.SECTION_HEADER);
+    doc.setTextColor(PDF_THEME.COLORS.ACCENT);
+    doc.text(title.toUpperCase(), startX + 4, y + 7);
 
-    // Text vertically centered
-    doc.text(title, PDF_CONFIG.MARGIN + PDF_CONFIG.CELL_PADDING, y + (PDF_CONFIG.LINE_HEIGHT * 1.5) / 2 + 1.5);
+    // 3. Render Content Inside
+    y += 15; // Move down into the card body
+    return renderContent(doc, y, startX, width);
+};
 
-    return y + PDF_CONFIG.LINE_HEIGHT * 1.5;
-}
+/**
+ * Draws a "Field Label" and "Value" stacked vertically.
+ * This mimics the "Focus-Mode" UI of the app.
+ */
+export const drawField = (doc, x, y, label, value, width = 60) => {
+    // Label (Small, Uppercase, Gray)
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'bold');
+    doc.setFontSize(PDF_THEME.SIZES.LABEL);
+    doc.setTextColor(PDF_THEME.COLORS.SECONDARY);
+    doc.text(String(label).toUpperCase(), x, y);
 
-// Helper to draw a data row (Label | Value)
-export function addTableRow(doc, y, key, value) {
-    const displayValue = getFieldValue(value);
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-    doc.setFontSize(10);
+    // Value (Larger, Dark)
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'normal');
+    doc.setFontSize(PDF_THEME.SIZES.VALUE);
+    doc.setTextColor(PDF_THEME.COLORS.TEXT);
+    
+    // Handle text wrapping for long values
+    const safeValue = value ? String(value) : "N/A";
+    const splitText = doc.splitTextToSize(safeValue, width);
+    doc.text(splitText, x, y + 5);
 
-    // Calculate wrapped text height
-    const keyLines = doc.splitTextToSize(key, PDF_CONFIG.TABLE_FIRST_COL_WIDTH - (PDF_CONFIG.CELL_PADDING * 2));
-    const valueLines = doc.splitTextToSize(displayValue, TABLE_SECOND_COL_WIDTH - (PDF_CONFIG.CELL_PADDING * 2));
+    // Return the height used (lines * line height)
+    return (splitText.length * 5) + 6; 
+};
 
-    const lineCount = Math.max(keyLines.length, valueLines.length);
-    const rowHeight = lineCount * (PDF_CONFIG.LINE_HEIGHT * 0.9) + (PDF_CONFIG.CELL_PADDING * 2);
+/**
+ * Draws a 2-column grid row.
+ */
+export const drawGridRow = (doc, y, col1, col2) => {
+    const colWidth = (PDF_THEME.LAYOUT.PAGE_WIDTH - (PDF_THEME.LAYOUT.MARGIN * 2)) / 2;
+    const x1 = PDF_THEME.LAYOUT.MARGIN;
+    const x2 = x1 + colWidth;
 
-    y = checkPageBreak(doc, y, rowHeight);
+    const h1 = drawField(doc, x1, y, col1.label, col1.value, colWidth - 5);
+    const h2 = drawField(doc, x2, y, col2.label, col2.value, colWidth - 5);
 
-    doc.setDrawColor(PDF_CONFIG.TABLE_LINE_COLOR);
+    return y + Math.max(h1, h2) + PDF_THEME.LAYOUT.SECTION_GAP; // Return new Y position
+};
 
-    // Draw borders
-    doc.rect(PDF_CONFIG.MARGIN, y, PDF_CONFIG.TABLE_FIRST_COL_WIDTH, rowHeight);
-    doc.rect(PDF_CONFIG.MARGIN + PDF_CONFIG.TABLE_FIRST_COL_WIDTH, y, TABLE_SECOND_COL_WIDTH, rowHeight);
+/**
+ * Draws a horizontal divider line.
+ */
+export const drawDivider = (doc, y) => {
+    doc.setDrawColor(PDF_THEME.COLORS.BORDER);
+    doc.line(
+        PDF_THEME.LAYOUT.MARGIN, 
+        y, 
+        PDF_THEME.LAYOUT.PAGE_WIDTH - PDF_THEME.LAYOUT.MARGIN, 
+        y
+    );
+    return y + 5;
+};
 
-    // Calculate vertical center for text
-    const textY = y + rowHeight / 2 - (lineCount * (PDF_CONFIG.LINE_HEIGHT * 0.9)) / 2 + (PDF_CONFIG.LINE_HEIGHT * 0.9) - (PDF_CONFIG.CELL_PADDING / 2);
+/**
+ * Draws a professional "Boolean Badge" (YES/NO).
+ */
+export const drawBooleanBadge = (doc, x, y, label, value) => {
+    // Draw Label first
+    doc.setFont(PDF_THEME.FONTS.MAIN, 'bold');
+    doc.setFontSize(PDF_THEME.SIZES.LABEL);
+    doc.setTextColor(PDF_THEME.COLORS.SECONDARY);
+    doc.text(String(label).toUpperCase(), x, y);
 
-    doc.setTextColor(0, 0, 0);
-    doc.text(keyLines, PDF_CONFIG.MARGIN + PDF_CONFIG.CELL_PADDING, textY);
-    doc.text(valueLines, PDF_CONFIG.MARGIN + PDF_CONFIG.TABLE_FIRST_COL_WIDTH + PDF_CONFIG.CELL_PADDING, textY);
+    // Draw Badge
+    const isYes = String(value).toLowerCase() === 'yes';
+    const badgeColor = isYes ? PDF_THEME.COLORS.ERROR : PDF_THEME.COLORS.SUCCESS; // Red for "Yes" usually means alert in safety context (accidents, violations), swap if needed
+    const badgeText = isYes ? "YES" : "NO";
+    
+    // Logic check: If "Yes" is good (e.g. Legal to work), we might want green. 
+    // For now, let's stick to neutral/gray vs highlight.
+    
+    doc.setFillColor(isYes ? '#FEF2F2' : '#F0FDF4'); // Light Red vs Light Green bg
+    doc.setDrawColor(isYes ? '#F87171' : '#4ADE80');
+    doc.roundedRect(x, y + 2, 20, 7, 1, 1, 'FD');
 
-    return y + rowHeight;
-}
-
-// Helper to draw full-width text blocks (for Agreements)
-export function addFullWidthText(doc, y, text) {
-    y = checkPageBreak(doc, y, 10); 
-    const textWidth = PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN * 2;
-    doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(0, 0, 0);
-
-    const paragraphs = text.split('\n'); 
-
-    for (const paragraph of paragraphs) {
-        const trimmedParagraph = paragraph.trim();
-        if (trimmedParagraph.length === 0) {
-            y += (PDF_CONFIG.LINE_HEIGHT * 0.5); 
-            continue;
-        }
-
-        const splitText = doc.splitTextToSize(trimmedParagraph, textWidth);
-        const requiredHeight = (Array.isArray(splitText) ? splitText.length : 1) * (PDF_CONFIG.LINE_HEIGHT * 0.8) + (PDF_CONFIG.LINE_HEIGHT * 0.5);
-
-        y = checkPageBreak(doc, y, requiredHeight); 
-
-        doc.text(splitText, PDF_CONFIG.MARGIN, y);
-        const numLines = Array.isArray(splitText) ? splitText.length : 1;
-        y += (numLines * (PDF_CONFIG.LINE_HEIGHT * 0.8)) + (PDF_CONFIG.LINE_HEIGHT * 0.5);
-    }
-    return y;
-}
+    doc.setFontSize(PDF_THEME.SIZES.SMALL);
+    doc.setTextColor(isYes ? '#991B1B' : '#166534');
+    doc.text(badgeText, x + 5, y + 7);
+    
+    return 15; // height used
+};
