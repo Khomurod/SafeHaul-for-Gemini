@@ -1,5 +1,5 @@
 import React from 'react';
-import { HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck, Phone, Gavel, HeartPulse, CheckCircle2, Clock, ShieldAlert, BadgeCheck } from 'lucide-react';
+import { HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck, Phone, Gavel, HeartPulse, CheckCircle2, ShieldAlert, BadgeCheck } from 'lucide-react';
 import { Section } from '../ApplicationUI';
 import { getFieldValue } from '@shared/utils/helpers';
 
@@ -18,7 +18,7 @@ export function SupplementalSection({ appData }) {
   return (
     <div className="space-y-6">
 
-      {/* --- 1. CRITICAL SAFETY DECLARATIONS (Missing in previous version) --- */}
+      {/* --- 1. CRITICAL SAFETY DECLARATIONS --- */}
       <Section title="Safety & Background Declarations">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
@@ -70,7 +70,7 @@ export function SupplementalSection({ appData }) {
           </div>
       </Section>
 
-      {/* --- 2. CREDENTIALS & EXPERIENCE (Missing TWIC/Vehicle Exp) --- */}
+      {/* --- 2. CREDENTIALS & EXPERIENCE --- */}
       <Section title="Credentials & Vehicle Experience">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               
@@ -268,7 +268,7 @@ export function SupplementalSection({ appData }) {
           </div>
       </Section>
 
-      {/* --- 6. HOS LOG (Missing in previous version) --- */}
+      {/* --- 6. HOS LOG --- */}
       <Section title="Hours of Service (Last 7 Days)">
           <div className="overflow-x-auto">
               <table className="w-full text-sm text-center border-collapse border border-gray-200">
