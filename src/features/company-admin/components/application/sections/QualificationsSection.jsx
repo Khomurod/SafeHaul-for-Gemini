@@ -1,7 +1,7 @@
 // src/components/admin/sections/QualificationsSection.jsx
 import React from 'react';
 import { Section, InfoGrid, InfoItem } from '../ApplicationUI.jsx';
-import { CheckCircle, XCircle, AlertCircle, AlertTriangle, Database } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, AlertTriangle, Database, Globe } from 'lucide-react';
 import { getFieldValue } from '@shared/utils/helpers';
 
 const DRIVER_POSITIONS = ["Company Driver", "Lease Operator", "Owner Operator", "Team Driver"];
@@ -61,10 +61,12 @@ export function QualificationsSection({
   };
 
   const getSourceLabel = () => {
+      // Prioritize explicit referral source typed by driver, then system source
+      if (appData.referralSource) return appData.referralSource;
       if (appData.isPlatformLead || appData.sourceType === 'Added by Safehaul') {
-          return 'SafeHaul Network Leads';
+          return 'SafeHaul Network';
       }
-      return appData.source || 'App Signup';
+      return appData.source || appData.sourceType || 'Direct Application';
   };
 
   if (canEditAllFields) {
@@ -182,7 +184,9 @@ export function QualificationsSection({
         </div>
 
         <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Source</label>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1 flex items-center gap-1">
+                <Globe size={12} className="text-blue-500"/> Source
+            </label>
             <p className="text-lg font-medium text-gray-900">{getSourceLabel()}</p>
         </div>
 
