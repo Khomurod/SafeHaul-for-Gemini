@@ -1,8 +1,7 @@
 import React, { useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { 
-    useApplicationSubmit 
-} from '@features/driver-app/hooks/useApplicationSubmit';
+// FIX: Changed to relative path to ensure module loads correctly
+import { useApplicationSubmit } from '../../hooks/useApplicationSubmit';
 import { 
     FileSignature, 
     ChevronDown, 
