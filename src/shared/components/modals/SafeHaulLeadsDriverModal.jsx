@@ -114,7 +114,8 @@ export function SafeHaulLeadsDriverModal({ lead, onClose, onCallStart }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    // FIX: Increased z-index from z-50 to z-[60] to prevent header conflicts
+    <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
         
         <div className="bg-gradient-to-r from-slate-50 to-white border-b border-gray-200 p-6 flex justify-between items-start shrink-0">
