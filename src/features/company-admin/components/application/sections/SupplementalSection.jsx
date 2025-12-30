@@ -1,40 +1,122 @@
 import React from 'react';
-import { HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck } from 'lucide-react';
+import { HelpCircle, AlertTriangle, FileSignature, AlertCircle, School, Flag, Truck, Phone, Gavel, HeartPulse, CheckCircle2, Clock, ShieldAlert, BadgeCheck } from 'lucide-react';
 import { Section } from '../ApplicationUI';
 import { getFieldValue } from '@shared/utils/helpers';
 
 export function SupplementalSection({ appData }) {
 
-  // Helper to render empty states
   const renderEmpty = (text) => <p className="text-gray-400 italic text-sm">{text}</p>;
-
+  const formatPhone = (phone) => phone ? phone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') : 'N/A';
+  
   if (!appData) return null;
+
+  const hasFelony = appData['has-felony'] === 'yes';
+  const hasRevoked = appData['revoked-licenses'] === 'yes';
+  const hasSuspended = appData['driving-convictions'] === 'yes';
+  const hasDrugConviction = appData['drug-alcohol-convictions'] === 'yes';
 
   return (
     <div className="space-y-6">
 
-      {/* --- CUSTOM QUESTIONS --- */}
-      {appData.customAnswers && Object.keys(appData.customAnswers).length > 0 && (
-         <Section title="Supplemental Questions">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {Object.entries(appData.customAnswers).map(([question, answer], i) => (
-                      <div key={i} className="p-3 bg-blue-50 rounded-lg border border-blue-100">
-                          <p className="text-xs font-bold text-blue-700 uppercase mb-1 flex items-center gap-1">
-                              <HelpCircle size={12}/> {question}
-                          </p>
-                          <p className="text-sm text-gray-900 font-medium break-words">
-                              {Array.isArray(answer) ? answer.join(', ') : (String(answer) || 'N/A')}
-                          </p>
-                      </div>
-                  ))}
-              </div>
-          </Section>
-      )}
+      {/* --- 1. CRITICAL SAFETY DECLARATIONS (Missing in previous version) --- */}
+      <Section title="Safety & Background Declarations">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              
+              {/* Declarations Card */}
+              <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm space-y-3">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2">
+                      <ShieldAlert size={14}/> Legal Questions
+                  </h4>
+                  
+                  <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                      <span className="text-gray-700">License ever revoked/suspended?</span>
+                      <span className={`font-bold px-2 py-0.5 rounded ${hasRevoked ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {hasRevoked ? 'YES' : 'NO'}
+                      </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center text-sm border-b border-gray-100 pb-2">
+                      <span className="text-gray-700">Convicted driving while suspended?</span>
+                      <span className={`font-bold px-2 py-0.5 rounded ${hasSuspended ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {hasSuspended ? 'YES' : 'NO'}
+                      </span>
+                  </div>
 
-      {/* --- DRIVING HISTORY (Violations & Accidents) --- */}
+                  <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-700">Drug/Alcohol Convictions?</span>
+                      <span className={`font-bold px-2 py-0.5 rounded ${hasDrugConviction ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {hasDrugConviction ? 'YES' : 'NO'}
+                      </span>
+                  </div>
+              </div>
+
+              {/* Felony & Criminal */}
+              <div className={`p-4 rounded-lg border ${hasFelony ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200'}`}>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase flex items-center gap-2 mb-3">
+                      <Gavel size={14}/> Criminal History
+                  </h4>
+                  <div className="flex items-center gap-2 mb-2">
+                      {hasFelony ? <AlertTriangle size={18} className="text-red-600"/> : <CheckCircle2 size={18} className="text-green-600"/>}
+                      <span className={`font-bold ${hasFelony ? 'text-red-800' : 'text-green-800'}`}>
+                          {hasFelony ? 'Felony Conviction Reported' : 'No Felony Convictions'}
+                      </span>
+                  </div>
+                  {hasFelony && (
+                      <p className="text-sm text-red-700 mt-2 bg-white p-2 rounded border border-red-100 italic">
+                          "{appData.felonyExplanation}"
+                      </p>
+                  )}
+              </div>
+          </div>
+      </Section>
+
+      {/* --- 2. CREDENTIALS & EXPERIENCE (Missing TWIC/Vehicle Exp) --- */}
+      <Section title="Credentials & Vehicle Experience">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* TWIC & Business */}
+              <div className="space-y-4">
+                  <div className="bg-blue-50 p-3 rounded border border-blue-100 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                          <BadgeCheck size={18} className="text-blue-600"/>
+                          <span className="text-sm font-bold text-blue-900">TWIC Card</span>
+                      </div>
+                      <span className="text-sm font-medium text-blue-800">
+                          {appData['has-twic'] === 'yes' ? `Exp: ${appData.twicExpiration || 'N/A'}` : 'Not Held'}
+                      </span>
+                  </div>
+
+                  {appData.businessName && (
+                      <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                          <p className="text-xs font-bold text-gray-500 uppercase">Owner Operator Info</p>
+                          <p className="font-bold text-gray-900">{appData.businessName}</p>
+                          <p className="text-sm text-gray-600">EIN: {appData.ein || 'N/A'}</p>
+                      </div>
+                  )}
+              </div>
+
+              {/* Equipment Experience */}
+              <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                  <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
+                      <Truck size={14}/> Driving Experience
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                          <span className="text-gray-600">Straight Truck:</span>
+                          <span className="font-medium text-gray-900">{appData.expStraightTruckExp || '0'} yrs ({appData.expStraightTruckMiles || '0'} miles)</span>
+                      </div>
+                      <div className="flex justify-between border-t border-gray-200 pt-2">
+                          <span className="text-gray-600">Semi-Trailer:</span>
+                          <span className="font-medium text-gray-900">{appData.expSemiTrailerExp || '0'} yrs ({appData.expSemiTrailerMiles || '0'} miles)</span>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </Section>
+
+      {/* --- 3. DRIVING RECORD (Violations & Accidents) --- */}
       <Section title="Driving Record (Past 3 Years)">
           <div className="space-y-6">
-
               {/* Violations */}
               <div>
                   <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
@@ -54,7 +136,12 @@ export function SupplementalSection({ appData }) {
                               </div>
                           ))}
                       </div>
-                  ) : renderEmpty("No violations listed.")}
+                  ) : (
+                      <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded border border-green-100">
+                          <CheckCircle2 size={18} />
+                          <span className="text-sm font-medium">Clean Driving Record (No violations listed)</span>
+                      </div>
+                  )}
               </div>
 
               {/* Accidents */}
@@ -78,12 +165,17 @@ export function SupplementalSection({ appData }) {
                               </div>
                           ))}
                       </div>
-                  ) : renderEmpty("No accidents listed.")}
+                  ) : (
+                      <div className="flex items-center gap-2 text-green-700 bg-green-50 p-3 rounded border border-green-100">
+                          <CheckCircle2 size={18} />
+                          <span className="text-sm font-medium">No Accidents Reported</span>
+                      </div>
+                  )}
               </div>
           </div>
       </Section>
 
-      {/* --- EMPLOYMENT HISTORY --- */}
+      {/* --- 4. EMPLOYMENT HISTORY --- */}
       <Section title="Employment History">
           {appData.employers && appData.employers.length > 0 ? (
               <div className="space-y-4">
@@ -101,7 +193,7 @@ export function SupplementalSection({ appData }) {
                               <p><span className="font-medium">Location:</span> {emp.city}, {emp.state}</p>
                               <p><span className="font-medium">Position:</span> {emp.position}</p>
                               <p className="sm:col-span-2"><span className="font-medium">Reason for Leaving:</span> {emp.reason}</p>
-                              {emp.phone && <p className="sm:col-span-2"><span className="font-medium">Contact:</span> {emp.phone}</p>}
+                              {emp.phone && <p className="sm:col-span-2"><span className="font-medium">Contact:</span> {formatPhone(emp.phone)}</p>}
                           </div>
                       </div>
                   ))}
@@ -121,11 +213,95 @@ export function SupplementalSection({ appData }) {
           )}
       </Section>
 
-      {/* --- EDUCATION & MILITARY --- */}
+      {/* --- 5. CUSTOM QUESTIONS & EMERGENCY --- */}
+      <Section title="Supplemental Info">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Emergency Contacts */}
+              <div>
+                  <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                      <HeartPulse size={16} className="text-red-500"/> Emergency Contacts
+                  </h4>
+                  <div className="space-y-3">
+                      {appData.ec1Name ? (
+                          <div className="bg-gray-50 p-3 rounded border border-gray-200 text-sm">
+                              <p className="font-bold text-gray-900">{appData.ec1Name}</p>
+                              <p className="text-gray-600">{appData.ec1Relationship}</p>
+                              <div className="flex items-center gap-1 mt-1 text-blue-600 font-medium">
+                                  <Phone size={12} /> {formatPhone(appData.ec1Phone)}
+                              </div>
+                          </div>
+                      ) : <p className="text-sm text-gray-400 italic">Primary contact missing</p>}
+
+                      {appData.ec2Name && (
+                          <div className="bg-gray-50 p-3 rounded border border-gray-200 text-sm">
+                              <p className="font-bold text-gray-900">{appData.ec2Name}</p>
+                              <p className="text-gray-600">{appData.ec2Relationship}</p>
+                              <div className="flex items-center gap-1 mt-1 text-blue-600 font-medium">
+                                  <Phone size={12} /> {formatPhone(appData.ec2Phone)}
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Custom Questions */}
+              <div>
+                  <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                      <HelpCircle size={16} className="text-blue-500"/> Custom Questions
+                  </h4>
+                  {appData.customAnswers && Object.keys(appData.customAnswers).length > 0 ? (
+                      <div className="space-y-2">
+                          {Object.entries(appData.customAnswers).map(([question, answer], i) => (
+                              <div key={i} className="p-3 bg-blue-50 rounded border border-blue-100">
+                                  <p className="text-xs font-bold text-blue-800 uppercase mb-1">
+                                      {question}
+                                  </p>
+                                  <p className="text-sm text-gray-900 font-medium break-words">
+                                      {Array.isArray(answer) ? answer.join(', ') : (String(answer) || 'N/A')}
+                                  </p>
+                              </div>
+                          ))}
+                      </div>
+                  ) : renderEmpty("No custom questions answered.")}
+              </div>
+          </div>
+      </Section>
+
+      {/* --- 6. HOS LOG (Missing in previous version) --- */}
+      <Section title="Hours of Service (Last 7 Days)">
+          <div className="overflow-x-auto">
+              <table className="w-full text-sm text-center border-collapse border border-gray-200">
+                  <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
+                      <tr>
+                          {[1, 2, 3, 4, 5, 6, 7].map(d => <th key={d} className="border border-gray-200 p-2">Day {d}</th>)}
+                          <th className="border border-gray-200 p-2 text-blue-700">Total</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                      <tr>
+                          {[1, 2, 3, 4, 5, 6, 7].map(d => (
+                              <td key={d} className="border border-gray-200 p-2 font-medium text-gray-900">
+                                  {appData['hosDay' + d] || 0}
+                              </td>
+                          ))}
+                          <td className="border border-gray-200 p-2 font-bold text-blue-700 bg-blue-50">
+                              {[1, 2, 3, 4, 5, 6, 7].reduce((acc, d) => acc + (parseInt(appData['hosDay' + d]) || 0), 0)}
+                          </td>
+                      </tr>
+                  </tbody>
+              </table>
+              <div className="mt-3 text-xs text-gray-500 flex justify-end gap-4">
+                  <span>Last Relieved: <strong className="text-gray-900">{appData.lastRelievedDate || 'N/A'}</strong></span>
+                  <span>Time: <strong className="text-gray-900">{appData.lastRelievedTime || 'N/A'}</strong></span>
+              </div>
+          </div>
+      </Section>
+
+      {/* --- 7. EDUCATION & MILITARY --- */}
       {(appData.schools?.length > 0 || appData.military?.length > 0) && (
         <Section title="Education & Military">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
                 {/* Schools */}
                 {appData.schools?.length > 0 && (
                     <div>
@@ -160,7 +336,7 @@ export function SupplementalSection({ appData }) {
         </Section>
       )}
 
-      {/* --- SIGNATURE --- */}
+      {/* --- 8. SIGNATURE --- */}
       <Section title="Digital Signature & Consent">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
