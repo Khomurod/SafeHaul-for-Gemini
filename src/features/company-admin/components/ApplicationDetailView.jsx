@@ -113,7 +113,8 @@ export function ApplicationDetailView({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 z-40 backdrop-blur-sm flex justify-end transition-opacity duration-300" onClick={onClosePanel}>
+    // FIX: Increased z-index from z-40 to z-[60] to sit above Dashboard Header (z-50)
+    <div className="fixed inset-0 bg-slate-900/60 z-[60] backdrop-blur-sm flex justify-end transition-opacity duration-300" onClick={onClosePanel}>
 
       <div 
         className="bg-gray-50 w-[85%] md:w-[75%] lg:w-[65%] h-full shadow-2xl flex flex-col border-l border-gray-200 transform transition-transform duration-300"
