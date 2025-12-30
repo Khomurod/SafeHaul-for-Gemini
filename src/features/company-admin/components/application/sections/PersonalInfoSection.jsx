@@ -1,85 +1,133 @@
 import React from 'react';
-import { Phone, AlertCircle } from 'lucide-react';
 import { Section, InfoGrid, InfoItem } from '../ApplicationUI';
-import { formatPhoneNumber, getFieldValue } from '@shared/utils/helpers';
+import { getFieldValue } from '@shared/utils/helpers';
+import { AlertCircle, User } from 'lucide-react';
 
 export function PersonalInfoSection({ 
   appData, 
   isEditing, 
   handleDataChange, 
-  canEditAllFields, 
+  canEditAllFields,
   onPhoneClick 
 }) {
 
-  if (canEditAllFields) {
-    return (
-        <Section title="Personal Information">
-          <InfoGrid>
-            <InfoItem label="First Name" value={appData.firstName} isEditing={isEditing} onChange={v => handleDataChange('firstName', v)} />
-            <InfoItem label="Middle Name" value={appData.middleName} isEditing={isEditing} onChange={v => handleDataChange('middleName', v)} />
-            <InfoItem label="Last Name" value={appData.lastName} isEditing={isEditing} onChange={v => handleDataChange('lastName', v)} />
+  // Helper for SSN masking
+  const renderSSN = (ssn) => {
+      if (!ssn) return <span className="text-gray-400 italic">Not provided</span>;
+      // If editing, show full value
+      if (isEditing) return (
+          <input 
+              type="text" 
+              value={ssn} 
+              onChange={(e) => handleDataChange('ssn', e.target.value)}
+              className="w-full p-2 border border-gray-300 rounded"
+          />
+      );
+      // Mask for view only
+      return <span>***-**-{ssn.slice(-4)}</span>;
+  };
 
-            <div className="col-span-1">
-               <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
-               {isEditing ? (
-                   <input 
-                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none" 
-                      value={appData.phone || ''} 
-                      onChange={(e) => handleDataChange('phone', e.target.value)} 
-                   />
-               ) : (
-                   onPhoneClick && appData.phone ? (
-                      <button onClick={onPhoneClick} className="text-lg font-medium text-blue-600 hover:underline flex items-center gap-2 transition-colors">
-                          <Phone size={16} className="fill-blue-100"/> {formatPhoneNumber(getFieldValue(appData.phone))}
-                       </button>
-                   ) : (
-                      <p className="text-lg font-medium text-gray-900">{formatPhoneNumber(getFieldValue(appData.phone))}</p>
-                   )
-               )}
-            </div>
-
-            <InfoItem label="Email" value={appData.email} isEditing={isEditing} onChange={v => handleDataChange('email', v)} />
-            <InfoItem label="DOB" value={appData.dob} isEditing={isEditing} onChange={v => handleDataChange('dob', v)} />
-            <InfoItem label="SSN" value={appData.ssn} isEditing={isEditing} onChange={v => handleDataChange('ssn', v)} />
-          </InfoGrid>
-
-          <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <InfoItem label="Street" value={appData.street} isEditing={isEditing} onChange={v => handleDataChange('street', v)} />
-              <InfoItem label="City" value={appData.city} isEditing={isEditing} onChange={v => handleDataChange('city', v)} />
-              <InfoItem label="State" value={appData.state} isEditing={isEditing} onChange={v => handleDataChange('state', v)} />
-              <InfoItem label="Zip" value={appData.zip} isEditing={isEditing} onChange={v => handleDataChange('zip', v)} />
-          </div>
-      </Section>
-    );
-  }
-
-  // View Only Mode (for HR Users)
   return (
     <Section title="Personal Information">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-        <AlertCircle className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
-        <div className="text-sm text-blue-800">
-          <p className="font-medium">View Only</p>
-          <p className="text-blue-700">As an HR user, you can only edit the status of this application. Other information is view-only.</p>
+      <InfoGrid>
+        
+        {/* Row 1: Name */}
+        <InfoItem label="First Name" value={appData.firstName} isEditing={isEditing} onChange={v => handleDataChange('firstName', v)} />
+        <InfoItem label="Middle" value={appData.middleName} isEditing={isEditing} onChange={v => handleDataChange('middleName', v)} />
+        <InfoItem label="Last Name" value={appData.lastName} isEditing={isEditing} onChange={v => handleDataChange('lastName', v)} />
+        
+        {/* NEW: Suffix */}
+        <div className="col-span-1">
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Suffix</label>
+            {isEditing ? (
+                <input 
+                    type="text" 
+                    value={appData.suffix || ''} 
+                    onChange={(e) => handleDataChange('suffix', e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded"
+                    placeholder="Jr."
+                />
+            ) : (
+                <p className="text-lg font-medium text-gray-900">{appData.suffix || '-'}</p>
+            )}
         </div>
-      </div>
-      <InfoGrid className="mt-4 opacity-75">
+
+        {/* Row 2: Contact & Identity */}
         <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">First Name</label>
-          <p className="text-lg font-medium text-gray-900">{appData.firstName}</p>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
+            {isEditing ? (
+                <input type="tel" value={appData.phone || ''} onChange={(e) => handleDataChange('phone', e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+            ) : (
+                <button onClick={() => onPhoneClick(appData.phone)} className="text-lg font-medium text-blue-600 hover:underline flex items-center gap-2">
+                    {appData.phone || 'N/A'}
+                </button>
+            )}
         </div>
+
+        <InfoItem label="Email" value={appData.email} isEditing={isEditing} onChange={v => handleDataChange('email', v)} />
+        
+        <InfoItem label="Date of Birth" value={appData.dob} isEditing={isEditing} type="date" onChange={v => handleDataChange('dob', v)} />
+        
         <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Last Name</label>
-          <p className="text-lg font-medium text-gray-900">{appData.lastName}</p>
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">SSN</label>
+            {renderSSN(appData.ssn)}
         </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Phone</label>
-          <p className="text-lg font-medium text-gray-900">{formatPhoneNumber(getFieldValue(appData.phone))}</p>
+
+        {/* NEW: Other Names (Aliases) */}
+        {appData['known-by-other-name'] === 'yes' && (
+            <div className="col-span-full bg-yellow-50 p-3 rounded-lg border border-yellow-200 mt-2">
+                <label className="flex items-center gap-2 text-xs font-bold text-yellow-800 uppercase mb-1">
+                    <User size={14}/> Known By Other Name(s)
+                </label>
+                {isEditing ? (
+                    <input 
+                        type="text" 
+                        value={appData.otherName || ''} 
+                        onChange={(e) => handleDataChange('otherName', e.target.value)}
+                        className="w-full p-2 border border-yellow-300 rounded"
+                    />
+                ) : (
+                    <p className="text-sm font-medium text-gray-900">{appData.otherName}</p>
+                )}
+            </div>
+        )}
+
+        {/* Row 3: Current Address */}
+        <div className="col-span-full pt-4 border-t border-gray-100">
+            <h4 className="text-sm font-bold text-gray-700 mb-3">Current Address</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InfoItem label="Street" value={appData.street} isEditing={isEditing} onChange={v => handleDataChange('street', v)} />
+                <div className="grid grid-cols-3 gap-4">
+                    <InfoItem label="City" value={appData.city} isEditing={isEditing} onChange={v => handleDataChange('city', v)} />
+                    <InfoItem label="State" value={appData.state} isEditing={isEditing} onChange={v => handleDataChange('state', v)} />
+                    <InfoItem label="Zip" value={appData.zip} isEditing={isEditing} onChange={v => handleDataChange('zip', v)} />
+                </div>
+            </div>
+            <div className="mt-2">
+                <span className="text-xs text-gray-500">Lived here 3+ years? </span>
+                <span className={`text-xs font-bold ${appData['residence-3-years'] === 'yes' ? 'text-green-600' : 'text-orange-600'}`}>
+                    {appData['residence-3-years'] === 'yes' ? 'YES' : 'NO'}
+                </span>
+            </div>
         </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email</label>
-          <p className="text-lg font-medium text-gray-900">{appData.email}</p>
-        </div>
+
+        {/* Row 4: Previous Address (Conditional) */}
+        {appData['residence-3-years'] === 'no' && (
+            <div className="col-span-full pt-4 border-t border-gray-100 bg-gray-50 p-4 rounded-lg">
+                <h4 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <AlertCircle size={14}/> Previous Address (Required for History)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <InfoItem label="Prev Street" value={appData.prevStreet} isEditing={isEditing} onChange={v => handleDataChange('prevStreet', v)} />
+                    <div className="grid grid-cols-3 gap-4">
+                        <InfoItem label="Prev City" value={appData.prevCity} isEditing={isEditing} onChange={v => handleDataChange('prevCity', v)} />
+                        <InfoItem label="Prev State" value={appData.prevState} isEditing={isEditing} onChange={v => handleDataChange('prevState', v)} />
+                        <InfoItem label="Prev Zip" value={appData.prevZip} isEditing={isEditing} onChange={v => handleDataChange('prevZip', v)} />
+                    </div>
+                </div>
+            </div>
+        )}
+
       </InfoGrid>
     </Section>
   );
