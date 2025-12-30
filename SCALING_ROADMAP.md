@@ -6,6 +6,58 @@ This roadmap outlines the strategic path to scaling SafeHaul from an Applicant T
 
 ---
 
+## 🚀 Phase 0: Enterprise UX & Document Standardization (High Priority)
+*Goal: Overhaul the Driver Application (Frontend), PDF Engine (Backend), and Admin Viewer to meet Fortune 500 compliance standards. The look and feel must be "Serious, Modern, and Professional."*
+
+### 1. The "Executive" PDF Overhaul
+- [ ] **Design System Configuration (`src/shared/utils/pdf/pdfStyles.js`)**
+    - Define a centralized `PDF_THEME` object.
+    - Set color palette: Navy (Primary), Slate (Secondary), Blue (Accents).
+    - Define typography hierarchy (Section Headers vs. Labels vs. Values).
+- [ ] **PDF Layout Helpers (`src/shared/utils/pdf/pdfHelpers.js`)**
+    - Implement `drawSectionCard`: Reusable function for colored headers and bordered boxes.
+    - Implement `drawGridRow`: Logic to auto-align two data points side-by-side.
+    - Implement `drawBooleanBadge`: Render "YES/NO" as visual badges.
+- [ ] **Section Renderers (`src/shared/utils/pdf/pdfSections.js`)**
+    - Create specific render functions for: Header, Identity, License, Employment (iterative cards), Safety (tables), and Signature.
+- [ ] **Main Generator Assembly (`src/shared/utils/pdfGenerator.js`)**
+    - Refactor `generateApplicationPDF` to assemble sections sequentially.
+    - Ensure legal text (FCRA, PSP, Electronic Consent) is rendered on separate pages.
+    - Add footer: "Page X of Y | Digitally Sealed".
+
+### 2. The "Focus-Mode" Driver App UI
+- [ ] **UI Component Upgrades**
+    - Update `InputField.jsx`: Increase height (`p-4`), use bold uppercase labels, add focus states.
+    - Update `RadioGroup.jsx`: Convert to "Selectable Cards" for mobile ease.
+- [ ] **Data Handling Logic**
+    - Create `useApplicationSubmit.js` hook for secure Firestore submission.
+    - Update `form-options.js` to centralize dropdown options (License Classes, Yes/No).
+- [ ] **Step-by-Step Refactoring**
+    - **Step 1 (Contact):** Implement "Card Grouping" layout.
+    - **Step 2 (Qualifications):** Group questions; add conditional logic for "Drug Test History."
+    - **Step 3 (License):** Stack inputs vertically; add endorsement checkboxes.
+    - **Step 4 & 5 (Violations/Accidents):** Implement `DynamicRow` with custom "Sub-Card" renderers.
+    - **Step 6 (Employment):** Create highlighted "Verification Contact" block (`bg-blue-50`).
+    - **Step 7 (HOS):** Replace HTML table with responsive "Smart Grid" (auto-calculates hours).
+    - **Step 8 (Review):** Replace text list with "Edit Cards" containing jump links.
+    - **Step 9 (Consent):** Build "Signing Ceremony" with Accordions for legal text and `SignatureCanvas`.
+
+### 3. The "Digital Dossier" Admin View
+- [ ] **Viewer Components (`src/features/company-admin/components/application/view-components/`)**
+    - Create `DataRow.jsx`: Strict "Label (30%) | Value (70%)" layout with copy-to-clipboard.
+    - Create `SectionCard.jsx`: Styled container with anchor ID support.
+    - Create `TimelineView.jsx`: Visualize Employment History as a vertical timeline.
+    - Create `RiskGrid.jsx`: Visualize Safety data (Green Shield vs. Red Table).
+- [ ] **Application Detail View (`ApplicationDetailView.jsx`)**
+    - Implement Sticky Header (Approve/Reject actions).
+    - Implement Sticky Sidebar Navigation.
+    - Assemble view using new components.
+- [ ] **Dashboard Integration (`CompanyAdminDashboard.jsx`)**
+    - Track `selectedApplicationId` state.
+    - Add `onClick` handler to "Direct Applications" list to open Detail View without navigation.
+
+---
+
 ## 🚨 Phase 1: The "Compliance Engine" (Critical)
 *Goal: Automate DOT audit readiness and document verification to increase product value for Paid plans.*
 
