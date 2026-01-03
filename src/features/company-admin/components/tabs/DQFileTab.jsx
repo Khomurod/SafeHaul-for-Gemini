@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db, storage } from '@lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'firebase/firestore';
+import { collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, Timestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { Loader2, Upload, Trash2, FileText, Download, AlertTriangle } from 'lucide-react';
-import { Section } from '../application/ApplicationUI'; 
+import { Loader2, Upload, Trash2, FileText, Download, AlertTriangle, Calendar } from 'lucide-react';
+import { Section } from '../application/ApplicationUI';
 
 const DQ_FILE_TYPES = [
   "Application for Employment",
@@ -19,6 +19,14 @@ const DQ_FILE_TYPES = [
   "Other"
 ];
 
+const EXPIRATION_REQUIRED_TYPES = [
+  "MVR (Annual)",
+  "Medical Card",
+  "Clearinghouse Report (Annual)",
+  "Certificate of Violations (Annual)",
+  "Annual Review"
+];
+
 export function DQFileTab({ companyId, applicationId, collectionName = 'applications' }) {
 
   const [dqFiles, setDqFiles] = useState([]);
@@ -26,8 +34,10 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
   const [isUploading, setIsUploading] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [error, setError] = useState('');
+
   const [fileToUpload, setFileToUpload] = useState(null);
   const [selectedFileType, setSelectedFileType] = useState(DQ_FILE_TYPES[0]);
+  const [expirationDate, setExpirationDate] = useState('');
 
   // --- 1. Get the correct Firestore path ---
   const dqFilesCollectionRef = useMemo(() => {
@@ -64,6 +74,12 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
       return;
     }
 
+    const needsExpiration = EXPIRATION_REQUIRED_TYPES.includes(selectedFileType);
+    if (needsExpiration && !expirationDate) {
+      setError("This document type requires an expiration date.");
+      return;
+    }
+
     setIsUploading(true);
     setUploadMessage('Uploading file...');
     setError('');
@@ -85,7 +101,8 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
         fileName: fileToUpload.name,
         url: downloadURL,
         storagePath: storagePath,
-        createdAt: new Date()
+        createdAt: new Date(),
+        expirationDate: expirationDate || null // Save expiration date if present
       };
 
       await addDoc(dqFilesCollectionRef, newDoc);
@@ -93,9 +110,10 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
       setUploadMessage('Upload Complete!');
       setFileToUpload(null);
       setSelectedFileType(DQ_FILE_TYPES[0]);
-      document.getElementById('dq-file-input').value = null; 
+      setExpirationDate('');
+      document.getElementById('dq-file-input').value = null;
 
-      await fetchDqFiles(); 
+      await fetchDqFiles();
       setTimeout(() => setUploadMessage(''), 2000);
 
     } catch (err) {
@@ -112,7 +130,7 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
       return;
     }
 
-    setLoading(true); 
+    setLoading(true);
     setError('');
 
     try {
@@ -133,25 +151,45 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
     }
   };
 
+  const doesRequireExpiration = EXPIRATION_REQUIRED_TYPES.includes(selectedFileType);
+
   return (
     <div className="space-y-6">
       <Section title="Add New DQ File">
         <div className="space-y-4">
-          <div>
-            <label htmlFor="dq-file-type" className="block text-sm font-medium text-gray-700 mb-1">
-              File Type
-            </label>
-            <select
-              id="dq-file-type"
-              className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              value={selectedFileType}
-              onChange={(e) => setSelectedFileType(e.target.value)}
-              disabled={isUploading}
-            >
-              {DQ_FILE_TYPES.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="dq-file-type" className="block text-sm font-medium text-gray-700 mb-1">
+                File Type
+              </label>
+              <select
+                id="dq-file-type"
+                className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                value={selectedFileType}
+                onChange={(e) => setSelectedFileType(e.target.value)}
+                disabled={isUploading}
+              >
+                {DQ_FILE_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            {doesRequireExpiration && (
+              <div>
+                <label htmlFor="dq-expiration" className="block text-sm font-medium text-gray-700 mb-1">
+                  Expiration Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  id="dq-expiration"
+                  className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                  value={expirationDate}
+                  onChange={(e) => setExpirationDate(e.target.value)}
+                  disabled={isUploading}
+                />
+              </div>
+            )}
           </div>
 
           <div>
@@ -173,7 +211,7 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
           </div>
 
           <div className="flex items-center gap-4">
-            <button 
+            <button
               className="w-full sm:w-auto py-2 px-6 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition duration-150 disabled:opacity-75"
               onClick={handleUpload}
               disabled={isUploading || !fileToUpload}
@@ -202,7 +240,15 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
               <div className="flex items-center gap-3 overflow-hidden">
                 <FileText size={20} className="text-blue-600 shrink-0" />
                 <div className="overflow-hidden">
-                  <p className="text-sm font-medium text-gray-900 truncate">{file.fileType}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-gray-900 truncate">{file.fileType}</p>
+                    {file.expirationDate && (
+                      <span className="text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full border border-yellow-200 font-medium flex items-center gap-1">
+                        <Calendar size={10} />
+                        Exp: {file.expirationDate}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-600 truncate" title={file.fileName}>{file.fileName}</p>
                 </div>
               </div>
