@@ -66,13 +66,21 @@ export function DriverDashboard() {
                             <p className="text-xs text-gray-500">Welcome back, {profile?.personalInfo?.firstName || currentUser?.email}</p>
                         </div>
                     </div>
-                    <button
-                        onClick={handleLogout}
-                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                        title="Sign Out"
-                    >
-                        <LogOut size={20} />
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <Link
+                            to="/driver/jobs"
+                            className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-bold text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                        >
+                            <Briefcase size={16} /> Job Board
+                        </Link>
+                        <button
+                            onClick={handleLogout}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                            title="Sign Out"
+                        >
+                            <LogOut size={20} />
+                        </button>
+                    </div>
                 </div>
             </header>
 
