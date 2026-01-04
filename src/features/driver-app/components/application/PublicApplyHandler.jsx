@@ -56,6 +56,19 @@ export function PublicApplyHandler() {
           }
         }
 
+        // --- DEBUG MOCK ---
+        if (slug === 'debug-mock') {
+          companyData = {
+            id: 'debug-company-123',
+            companyName: 'Debug Transport Logistics',
+            appSlug: 'debug-mock',
+            applicationConfig: {
+              showEmergencyContacts: true
+            }
+          };
+        }
+        // ------------------
+
         if (!companyData) {
           setError("Company not found.");
           setLoading(false);
@@ -141,8 +154,8 @@ export function PublicApplyHandler() {
   };
 
   const handleFinalSubmit = async () => {
-    // FIX: Validate the actual fields from Step 9 (Signature Name + Checkbox)
-    if (!formData.signatureName || !formData['final-certification']) {
+    // FIX: Validate the actual fields from Step 9 (Signature + Checkbox)
+    if (!formData.signature || !formData['final-certification']) {
       showError("Please complete the electronic signature in Step 9.");
       setCurrentStep(8); // Automatically jump to Step 9 (0-based index)
       return;
@@ -171,7 +184,8 @@ export function PublicApplyHandler() {
         },
         ...formData,
         // FIX: Construct the signature field expected by the backend PDF generator
-        signature: `TEXT_SIGNATURE:${formData.signatureName}`,
+        signature: formData.signature,
+        signatureType: formData.signatureType || 'drawn',
 
         companyId: company.id,
         companyName: company.companyName,
@@ -227,6 +241,7 @@ export function PublicApplyHandler() {
       <div className="max-w-4xl mx-auto mt-6 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <Stepper step={currentStep} formData={formData} updateFormData={handleUpdateFormData} onNavigate={handleNavigate} onPartialSubmit={handlePartialSubmit} onFinalSubmit={handleFinalSubmit} handleFileUpload={handleFileUpload} isUploading={isUploading} submissionStatus={submissionStatus} />
       </div>
+
     </div>
   );
 }

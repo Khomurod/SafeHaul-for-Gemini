@@ -132,7 +132,7 @@ service cloud.firestore {
         // 2. Guest -> Submitting via public link
         // 3. Super Admin / Company Team (Manual Entry)
         allow create: if (isSignedIn() && isValidAuthenticatedApplication()) || 
-                         (!isSignedIn() && isValidGuestApplication(companyId)) || 
+                         (isValidGuestApplication(companyId)) || 
                          isCompanyTeam(companyId);
 
         // READ:
