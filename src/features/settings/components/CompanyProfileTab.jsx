@@ -17,8 +17,8 @@ export function CompanyProfileTab({ currentCompanyProfile }) {
     const [logoUploading, setLogoUploading] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
 
-    const isCompanyAdmin = currentUserClaims?.roles?.[currentCompanyProfile.id] === 'company_admin' 
-                           || currentUserClaims?.roles?.globalRole === 'super_admin';
+    const isCompanyAdmin = currentUserClaims?.roles?.[currentCompanyProfile.id] === 'company_admin'
+        || currentUserClaims?.roles?.globalRole === 'super_admin';
 
     useEffect(() => {
         if (currentCompanyProfile) {
@@ -87,8 +87,7 @@ export function CompanyProfileTab({ currentCompanyProfile }) {
 
     const tabs = [
         { id: 'info', label: 'Company Information', icon: Info },
-        { id: 'questions', label: 'Application Form Questions', icon: ListChecks },
-        { id: 'hiring', label: 'Hiring Positions & Offers', icon: Briefcase }
+        { id: 'questions', label: 'Application Form Questions', icon: ListChecks }
     ];
 
     return (
