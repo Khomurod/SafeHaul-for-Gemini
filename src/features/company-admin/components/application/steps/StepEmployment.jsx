@@ -16,11 +16,11 @@ const EMPTY_EMPLOYER = {
 };
 
 const EMPTY_GAP = { startDate: '', endDate: '', reason: '' };
-const EMPTY_SCHOOL = { name: '', city: '', state: '', graduationDate: '' };
+const EMPTY_SCHOOL = { name: '', city: '', state: '', startDate: '', endDate: '' };
 const EMPTY_MILITARY = { branch: '', startDate: '', endDate: '', rank: '' };
 
 export function StepEmployment({ data, onChange }) {
-    
+
     const employers = Array.isArray(data.employers) ? data.employers : [];
     const unemployment = Array.isArray(data.unemployment) ? data.unemployment : [];
     const schools = Array.isArray(data.schools) ? data.schools : [];
@@ -60,7 +60,7 @@ export function StepEmployment({ data, onChange }) {
 
     return (
         <div className="space-y-6 animate-in slide-in-from-right duration-500">
-            
+
             <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl text-sm text-blue-800">
                 <p><strong>DOT Requirement:</strong> Please list employment history for the past 3 years. If you were a driver, please list up to 10 years. Include any gaps in employment.</p>
             </div>
@@ -74,7 +74,7 @@ export function StepEmployment({ data, onChange }) {
                 <div className="space-y-6">
                     {employers.map((emp, index) => (
                         <div key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-5 relative">
-                            
+
                             <div className="flex justify-between items-center mb-4 border-b border-gray-200 pb-2">
                                 <h4 className="font-bold text-gray-700 flex items-center gap-2">
                                     <Building2 size={18} className="text-gray-400" /> Employer #{index + 1}
@@ -97,7 +97,7 @@ export function StepEmployment({ data, onChange }) {
                                         <input type="text" className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Driver" value={emp.position} onChange={(e) => handleUpdateEmployer(index, 'position', e.target.value)} />
                                     </div>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="col-span-2">
                                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">City</label>
@@ -149,7 +149,7 @@ export function StepEmployment({ data, onChange }) {
                 <div className="space-y-4">
                     {unemployment.map((gap, i) => (
                         <div key={i} className="bg-gray-50 p-4 rounded-lg border relative">
-                            <button onClick={() => handleRemoveGap(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                            <button onClick={() => handleRemoveGap(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                             <div className="grid grid-cols-2 gap-3 mb-2">
                                 <div>
                                     <label className="block text-xs text-gray-500 mb-1">From</label>
@@ -166,7 +166,7 @@ export function StepEmployment({ data, onChange }) {
                 </div>
 
                 <button onClick={handleAddGap} className="mt-4 text-sm text-blue-600 flex items-center gap-1 font-medium">
-                    <Plus size={16}/> Add Employment Gap
+                    <Plus size={16} /> Add Employment Gap
                 </button>
             </div>
 
@@ -180,19 +180,28 @@ export function StepEmployment({ data, onChange }) {
                 <div className="space-y-4">
                     {schools.map((school, i) => (
                         <div key={i} className="bg-gray-50 p-4 rounded-lg border relative">
-                            <button onClick={() => handleRemoveSchool(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                            <button onClick={() => handleRemoveSchool(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
                                 <input type="text" placeholder="School Name" className="p-2 border rounded text-sm col-span-2" value={school.name} onChange={(e) => handleUpdateSchool(i, 'name', e.target.value)} />
                                 <input type="text" placeholder="City" className="p-2 border rounded text-sm" value={school.city} onChange={(e) => handleUpdateSchool(i, 'city', e.target.value)} />
                                 <input type="text" placeholder="State" maxLength={2} className="p-2 border rounded text-sm" value={school.state} onChange={(e) => handleUpdateSchool(i, 'state', e.target.value)} />
                             </div>
-                            <input type="date" className="w-full p-2 border rounded text-sm" value={school.graduationDate} onChange={(e) => handleUpdateSchool(i, 'graduationDate', e.target.value)} />
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Start Date</label>
+                                    <input type="date" className="w-full p-2 border rounded text-sm" value={school.startDate} onChange={(e) => handleUpdateSchool(i, 'startDate', e.target.value)} />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">End Date</label>
+                                    <input type="date" className="w-full p-2 border rounded text-sm" value={school.endDate} onChange={(e) => handleUpdateSchool(i, 'endDate', e.target.value)} />
+                                </div>
+                            </div>
                         </div>
                     ))}
                 </div>
 
                 <button onClick={handleAddSchool} className="mt-4 text-sm text-blue-600 flex items-center gap-1 font-medium">
-                    <Plus size={16}/> Add Driving School
+                    <Plus size={16} /> Add Driving School
                 </button>
             </div>
 
@@ -206,7 +215,7 @@ export function StepEmployment({ data, onChange }) {
                 <div className="space-y-4">
                     {military.map((mil, i) => (
                         <div key={i} className="bg-gray-50 p-4 rounded-lg border relative">
-                            <button onClick={() => handleRemoveMilitary(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                            <button onClick={() => handleRemoveMilitary(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                             <div className="grid grid-cols-2 gap-3 mb-2">
                                 <select className="p-2 border rounded text-sm" value={mil.branch} onChange={(e) => handleUpdateMilitary(i, 'branch', e.target.value)}>
                                     <option value="">Select Branch</option>
@@ -228,7 +237,7 @@ export function StepEmployment({ data, onChange }) {
                 </div>
 
                 <button onClick={handleAddMilitary} className="mt-4 text-sm text-blue-600 flex items-center gap-1 font-medium">
-                    <Plus size={16}/> Add Military Service
+                    <Plus size={16} /> Add Military Service
                 </button>
             </div>
 

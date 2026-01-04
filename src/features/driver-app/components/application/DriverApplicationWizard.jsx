@@ -127,8 +127,8 @@ export function DriverApplicationWizard({ isOpen, onClose, onSuccess, job, compa
 
   const handleFinalSubmit = async () => {
     // FIX: Add Validation for Signature
-    if (!formData.signatureName || !formData['final-certification']) {
-      showError("Please complete the electronic signature in the final step.");
+    if (!formData.signature || !formData['final-certification']) {
+      showError("Please provide your signature and certify the application.");
       setCurrentStep(8); // Jump to Step 9
       return;
     }
@@ -140,8 +140,8 @@ export function DriverApplicationWizard({ isOpen, onClose, onSuccess, job, compa
       // Prepare Payload
       const finalData = {
         ...formData,
-        // FIX: Ensure signature format matches PDF generator expectation
-        signature: `TEXT_SIGNATURE:${formData.signatureName}`,
+        signature: formData.signature,
+        signatureType: formData.signatureType || 'drawn',
         userId: currentUser.uid,
         driverId: currentUser.uid,
         status: 'New Application',

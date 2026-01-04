@@ -77,7 +77,14 @@ export function addEmploymentSection(doc, y, employers) {
         y = addTableRow(doc, y, `Employer ${i + 1}:`, getFieldValue(emp.name));
         doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
 
-        y = addTableRow(doc, y, "Dates Employed:", getFieldValue(emp.dates));
+        const formatMonthYear = (dateStr) => {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            if (isNaN(date.getTime())) return dateStr; // Fallback if it's already a string like "mm/yyyy"
+            return `${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
+        };
+
+        y = addTableRow(doc, y, "Dates Employed:", `${formatMonthYear(emp.startDate)} - ${formatMonthYear(emp.endDate)}`);
         y = addTableRow(doc, y, "Position Held:", getFieldValue(emp.position));
         y = addTableRow(doc, y, "Address:", `${getFieldValue(emp.city)}, ${getFieldValue(emp.state)}`);
         y = addTableRow(doc, y, "Reason for Leaving:", getFieldValue(emp.reason));
@@ -175,7 +182,7 @@ export function addSignatureBlock(doc, y, applicantData) {
     const name = `${getFieldValue(applicantData['firstName'])} ${getFieldValue(applicantData['lastName'])}`;
 
     // --- 49 CFR 391.21(b)(12) Certification Statement ---
-    const certificationText = "This certifies that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge.";
+    const certificationText = "This certifies that this application was completed by me, and that all entries on it and information in it are true and complete to the best of my knowledge. I authorize you to make such investigations and inquiries of my personal, employment, financial or medical history and other related matters as may be necessary in arriving at an employment decision.";
 
     doc.setFont(PDF_CONFIG.FONT.NORMAL, "italic");
     doc.setFontSize(10);

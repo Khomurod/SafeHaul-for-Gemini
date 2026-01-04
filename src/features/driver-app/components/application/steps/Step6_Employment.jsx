@@ -23,8 +23,8 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
 
     const empHistoryConfig = getConfig('employmentHistory', true);
 
-    const initialEmployer = { name: '', street: '', city: '', state: '', phone: '', position: '', dates: '', reason: '' };
-    const initialSchool = { name: '', dates: '', location: '' };
+    const initialEmployer = { name: '', street: '', city: '', state: '', phone: '', position: '', startDate: '', endDate: '', reason: '' };
+    const initialSchool = { name: '', startDate: '', endDate: '', location: '' };
     const initialUnemployment = { startDate: '', endDate: '', details: '' };
     const initialMilitary = { branch: '', start: '', end: '', rank: '', heavyEq: 'no', honorable: 'yes', explanation: '' };
 
@@ -55,7 +55,10 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
                 <InputField label="Phone" id={'emp-phone-' + index} name="phone" type="tel" value={item.phone} onChange={handleChange} />
             </div>
             <InputField label="Position Held" id={'emp-position-' + index} name="position" value={item.position} onChange={handleChange} />
-            <InputField label="Dates Employed (mm/yyyy - mm/yyyy)" id={'emp-dates-' + index} name="dates" value={item.dates} onChange={handleChange} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField label="Start Date" id={'emp-start-' + index} name="startDate" type="date" value={item.startDate} onChange={handleChange} required={empHistoryConfig.required} />
+                <InputField label="End Date" id={'emp-end-' + index} name="endDate" type="date" value={item.endDate} onChange={handleChange} required={empHistoryConfig.required} />
+            </div>
             <InputField label="Reason for Leaving" id={'emp-reason-' + index} name="reason" value={item.reason} onChange={handleChange} />
         </div>
     );
@@ -63,7 +66,10 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
     const renderSchoolRow = (index, item, handleChange) => (
         <div key={index} className="space-y-3">
             <InputField label="School Name" id={'school-name-' + index} name="name" value={item.name} onChange={handleChange} required={true} />
-            <InputField label="Dates Attended" id={'school-dates-' + index} name="dates" value={item.dates} onChange={handleChange} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField label="Start Date" id={'school-start-' + index} name="startDate" type="date" value={item.startDate} onChange={handleChange} required={true} />
+                <InputField label="End Date" id={'school-end-' + index} name="endDate" type="date" value={item.endDate} onChange={handleChange} required={true} />
+            </div>
             <InputField label="Location (City, State)" id={'school-location-' + index} name="location" value={item.location} onChange={handleChange} />
         </div>
     );

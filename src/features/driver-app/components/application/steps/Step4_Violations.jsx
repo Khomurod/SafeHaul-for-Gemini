@@ -35,37 +35,37 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
 
     const renderViolationRow = (index, item, handleChange) => (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <InputField 
-                label="Date of Conviction" 
-                id={'violation-date-' + index} 
-                name="date" 
+            <InputField
+                label="Date of Conviction"
+                id={'violation-date-' + index}
+                name="date"
                 type="date"
-                value={item.date} 
+                value={item.date}
                 onChange={handleChange}
-                required={true} 
-            />
-            <InputField 
-                label="Charge" 
-                id={'violation-charge-' + index} 
-                name="charge" 
-                value={item.charge} 
-                onChange={handleChange} 
                 required={true}
             />
-            <InputField 
-                label="Location (City, State)" 
-                id={'violation-location-' + index} 
-                name="location" 
-                value={item.location} 
-                onChange={handleChange} 
+            <InputField
+                label="Charge"
+                id={'violation-charge-' + index}
+                name="charge"
+                value={item.charge}
+                onChange={handleChange}
+                required={true}
+            />
+            <InputField
+                label="Location (City, State)"
+                id={'violation-location-' + index}
+                name="location"
+                value={item.location}
+                onChange={handleChange}
                 className="sm:col-span-2"
             />
-            <InputField 
-                label="Penalty" 
-                id={'violation-penalty-' + index} 
-                name="penalty" 
-                value={item.penalty} 
-                onChange={handleChange} 
+            <InputField
+                label="Penalty"
+                id={'violation-penalty-' + index}
+                name="penalty"
+                value={item.penalty}
+                onChange={handleChange}
                 className="sm:col-span-2"
             />
         </div>
@@ -81,42 +81,87 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
                 <div className="space-y-2 pt-4 border-t border-gray-200">
                     <label className="block text-sm font-medium text-gray-900">Motor Vehicle Record (MVR) Check</label>
                     <p className="text-sm text-gray-600">This is required for employment. We will pull your driving record from all states where you have held a license in the past 3 years.</p>
-                    <RadioGroup 
-                        label="I Consent to MVR Check" 
-                        name="consent-mvr" 
+                    <RadioGroup
+                        label="I Consent to MVR Check"
+                        name="consent-mvr"
                         options={yesNoOptions}
-                        value={formData['consent-mvr']} 
+                        value={formData['consent-mvr']}
                         onChange={updateFormData}
                         required={true}
                     />
                 </div>
 
-                <RadioGroup 
-                    label="Has any license, permit or privilege ever been denied, suspended, or revoked for any reason?" 
-                    name="revoked-licenses" 
+                <RadioGroup
+                    label="Has any license, permit or privilege ever been denied, suspended, or revoked for any reason?"
+                    name="revoked-licenses"
                     options={yesNoOptions}
-                    value={formData['revoked-licenses']} 
+                    value={formData['revoked-licenses']}
                     onChange={updateFormData}
                     required={true}
                 />
+                {formData['revoked-licenses'] === 'yes' && (
+                    <div className="pt-2 animate-in fade-in slide-in-from-top-1">
+                        <label htmlFor="revocation-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please provide details (date, location, circumstances): <span className="text-red-500">*</span></label>
+                        <textarea
+                            id="revocation-explanation"
+                            name="revocationExplanation"
+                            rows="3"
+                            required
+                            value={formData.revocationExplanation || ""}
+                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Provide details here..."
+                        ></textarea>
+                    </div>
+                )}
 
-                <RadioGroup 
-                    label="Have you ever been convicted of driving during license suspension or revocation, or driving without a valid license or an expired license, or are any charges pending?" 
-                    name="driving-convictions" 
+                <RadioGroup
+                    label="Have you ever been convicted of driving during license suspension or revocation, or driving without a valid license or an expired license, or are any charges pending?"
+                    name="driving-convictions"
                     options={yesNoOptions}
-                    value={formData['driving-convictions']} 
+                    value={formData['driving-convictions']}
                     onChange={updateFormData}
                     required={true}
                 />
+                {formData['driving-convictions'] === 'yes' && (
+                    <div className="pt-2 animate-in fade-in slide-in-from-top-1">
+                        <label htmlFor="conviction-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please provide details (date, location, circumstances): <span className="text-red-500">*</span></label>
+                        <textarea
+                            id="conviction-explanation"
+                            name="convictionExplanation"
+                            rows="3"
+                            required
+                            value={formData.convictionExplanation || ""}
+                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Provide details here..."
+                        ></textarea>
+                    </div>
+                )}
 
-                <RadioGroup 
-                    label="Have you ever been convicted for any alcohol or controlled substance related offense while operating a motor vehicle, or are any charges pending?" 
-                    name="drug-alcohol-convictions" 
+                <RadioGroup
+                    label="Have you ever been convicted for any alcohol or controlled substance related offense while operating a motor vehicle, or are any charges pending?"
+                    name="drug-alcohol-convictions"
                     options={yesNoOptions}
-                    value={formData['drug-alcohol-convictions']} 
+                    value={formData['drug-alcohol-convictions']}
                     onChange={updateFormData}
                     required={true}
                 />
+                {formData['drug-alcohol-convictions'] === 'yes' && (
+                    <div className="pt-2 animate-in fade-in slide-in-from-top-1">
+                        <label htmlFor="drug-conviction-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please provide details (date, location, circumstances): <span className="text-red-500">*</span></label>
+                        <textarea
+                            id="drug-conviction-explanation"
+                            name="drugConvictionExplanation"
+                            rows="3"
+                            required
+                            value={formData.drugConvictionExplanation || ""}
+                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            placeholder="Provide details here..."
+                        ></textarea>
+                    </div>
+                )}
 
                 {/* REMOVED: Upload Signed MVR Consent Form section */}
             </fieldset>
@@ -135,15 +180,15 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
             </fieldset>
 
             <div className="flex justify-between pt-6">
-                <button 
-                    type="button" 
+                <button
+                    type="button"
                     onClick={() => onNavigate('back')}
                     className="w-auto px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition duration-200"
                 >
                     Back
                 </button>
-                <button 
-                    type="button" 
+                <button
+                    type="button"
                     onClick={handleContinue}
                     className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                 >
