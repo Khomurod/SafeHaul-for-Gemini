@@ -14,8 +14,8 @@ export const EXPERIENCE_LEVELS = [
 ];
 
 export const FREIGHT_TYPES = [
-  "Dry Van", "Reefer", "Flatbed", "Tanker", "Box Truck", 
-  "Car Hauler", "Step Deck", "Lowboy", "Conestoga", 
+  "Dry Van", "Reefer", "Flatbed", "Tanker", "Box Truck",
+  "Car Hauler", "Step Deck", "Lowboy", "Conestoga",
   "Intermodal", "Power Only", "Hotshot"
 ];
 
@@ -41,31 +41,32 @@ export const INITIAL_SUB_POSITION_STATE = {
   hourly: { amount: '' },
   experienceRequired: 'moreThan1Year',
   hiringGeography: {
-      nationwide: true,
-      states: []
+    nationwide: true,
+    states: []
   },
   freightTypes: [],
-  homeTime: 'Weekly'
+  homeTime: 'Weekly',
+  benefits: {}
 };
 
 export const INITIAL_HIRING_STATE = {
   companyDriver: {
-      enabled: false,
-      solo: { ...INITIAL_SUB_POSITION_STATE },
-      team: { ...INITIAL_SUB_POSITION_STATE }
+    enabled: false,
+    solo: { ...INITIAL_SUB_POSITION_STATE },
+    team: { ...INITIAL_SUB_POSITION_STATE }
   },
   ownerOperator: {
-      enabled: false,
-      solo: { ...INITIAL_SUB_POSITION_STATE },
-      team: { ...INITIAL_SUB_POSITION_STATE }
+    enabled: false,
+    solo: { ...INITIAL_SUB_POSITION_STATE },
+    team: { ...INITIAL_SUB_POSITION_STATE }
   },
   leaseOperator: {
-      enabled: false,
-      solo: { ...INITIAL_SUB_POSITION_STATE },
-      team: { ...INITIAL_SUB_POSITION_STATE }
+    enabled: false,
+    solo: { ...INITIAL_SUB_POSITION_STATE },
+    team: { ...INITIAL_SUB_POSITION_STATE }
   },
   benefits: {
-      coversTransportation: false,
-      coversHotel: false
+    coversTransportation: false,
+    coversHotel: false
   }
 };
