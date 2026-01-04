@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import {
     MapPin, DollarSign, Briefcase, CheckCircle,
-    ChevronDown, ChevronUp, Truck, Clock
+    ChevronDown, ChevronUp, Truck, Clock, Loader2
 } from 'lucide-react';
 
-export function JobOfferCard({ job, onApply }) {
+export function JobOfferCard({ job, onApply, isApplying, isApplied }) {
     const [expanded, setExpanded] = useState(false);
 
     // Format Pay Display
@@ -66,9 +66,19 @@ export function JobOfferCard({ job, onApply }) {
                             <div className="flex-shrink-0">
                                 <button
                                     onClick={onApply}
-                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm w-full md:w-auto transition-colors"
+                                    disabled={isApplying || isApplied}
+                                    className={`px-6 py-2.5 font-bold rounded-lg shadow-sm w-full md:w-auto transition-colors flex items-center justify-center gap-2 ${isApplied
+                                            ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                                            : 'bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-70'
+                                        }`}
                                 >
-                                    Apply Now
+                                    {isApplying ? (
+                                        <><Loader2 className="animate-spin" size={18} /> Sending...</>
+                                    ) : isApplied ? (
+                                        <><CheckCircle size={18} /> Applied</>
+                                    ) : (
+                                        <>Apply Now</>
+                                    )}
                                 </button>
                             </div>
                         </div>

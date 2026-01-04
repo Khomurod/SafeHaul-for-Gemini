@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db, functions, auth } from '../../../lib/firebase'; // Adjust path as needed
-import { httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
-import { Building2, MapPin, ArrowRight, Briefcase, Search, Check, Loader2 } from 'lucide-react';
+import { db, functions, auth } from '../../../lib/firebase';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { Briefcase, Search, Loader2 } from 'lucide-react';
 import { submitApplication } from '../../applications/services/applicationService';
+import { JobOfferCard } from './dashboard/JobOfferCard';
 
 export default function JobBoard() {
     const [jobs, setJobs] = useState([]);
@@ -13,8 +13,9 @@ export default function JobBoard() {
     const [applied, setApplied] = useState({}); // Map of jobId -> boolean
     const [filter, setFilter] = useState({
         type: 'all', // all, local, regional, otr
-        freight: 'all', // dryVan, flatbed, reefer, tanker
-        minPay: 0
+        freight: 'all',
+        minPay: 0,
+        positionType: 'all' // companyDriver, ownerOperator, leaseOperator
     });
 
     useEffect(() => {
@@ -44,6 +45,25 @@ export default function JobBoard() {
         fetchJobs();
     }, []);
 
+    const handleApply = async (job) => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            alert("Please log in to apply.");
+            return;
+        }
+
+        setApplying(prev => ({ ...prev, [job.id]: true }));
+        try {
+            await submitApplication(job.companyId, job, currentUser.uid);
+            setApplied(prev => ({ ...prev, [job.id]: true }));
+        } catch (err) {
+            console.error(err);
+            alert("Failed to apply: " + err.message);
+        } finally {
+            setApplying(prev => ({ ...prev, [job.id]: false }));
+        }
+    };
+
     // --- Filtering Logic ---
     const filteredJobs = jobs.filter(job => {
         // Route Type Filter
@@ -51,6 +71,9 @@ export default function JobBoard() {
 
         // Freight Type Filter (Array check)
         if (filter.freight !== 'all' && !job.freightTypes?.includes(filter.freight)) return false;
+
+        // Position Type Filter
+        if (filter.positionType !== 'all' && job.positionType !== filter.positionType) return false;
 
         // Min Pay Filter (Weekly estimated)
         if (filter.minPay > 0 && (job.estimatedWeeklyPay || 0) < filter.minPay) return false;
@@ -77,19 +100,70 @@ export default function JobBoard() {
 
             <main className="max-w-6xl mx-auto px-6 py-8">
 
-                {/* Search / Filter (Proactive Placeholder) */}
-                <div className="mb-8 relative">
-                    <Search className="absolute left-4 top-3.5 text-gray-400" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Search companies or positions..."
-                        className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm"
-                    />
+                {/* Filters */}
+                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Route Type</label>
+                        <select
+                            value={filter.type}
+                            onChange={(e) => setFilter(prev => ({ ...prev, type: e.target.value }))}
+                            className="w-full p-2.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="all">All Routes</option>
+                            <option value="local">Local</option>
+                            <option value="regional">Regional</option>
+                            <option value="otr">OTR</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Freight Type</label>
+                        <select
+                            value={filter.freight}
+                            onChange={(e) => setFilter(prev => ({ ...prev, freight: e.target.value }))}
+                            className="w-full p-2.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="all">All Freight</option>
+                            <option value="dryVan">Dry Van</option>
+                            <option value="reefer">Reefer</option>
+                            <option value="flatbed">Flatbed</option>
+                            <option value="tanker">Tanker</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Position Type</label>
+                        <select
+                            value={filter.positionType}
+                            onChange={(e) => setFilter(prev => ({ ...prev, positionType: e.target.value }))}
+                            className="w-full p-2.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="all">All Positions</option>
+                            <option value="companyDriver">Company Driver</option>
+                            <option value="ownerOperator">Owner Operator</option>
+                            <option value="leaseOperator">Lease Operator</option>
+                        </select>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Min Weekly Pay</label>
+                        <select
+                            value={filter.minPay}
+                            onChange={(e) => setFilter(prev => ({ ...prev, minPay: Number(e.target.value) }))}
+                            className="w-full p-2.5 rounded-lg border border-gray-200 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                            <option value="0">Any Pay</option>
+                            <option value="1500">$1,500+</option>
+                            <option value="2000">$2,000+</option>
+                            <option value="2500">$2,500+</option>
+                            <option value="3000">$3,000+</option>
+                        </select>
+                    </div>
                 </div>
 
                 {loading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div className="grid grid-cols-1 gap-6">
+                        {[1, 2, 3].map(i => (
                             <div key={i} className="bg-white rounded-xl h-48 animate-pulse shadow-sm border border-gray-100"></div>
                         ))}
                     </div>
@@ -102,70 +176,15 @@ export default function JobBoard() {
                         <p className="text-gray-500">Check back later or try updating your search.</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 gap-6">
                         {filteredJobs.map(job => (
-                            <div key={job.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-6 flex flex-col justify-between h-full">
-                                <div>
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 font-bold text-xl overflow-hidden">
-                                            {job.logo ? (
-                                                <img src={job.logo} alt={job.companyName} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <Building2 size={24} />
-                                            )}
-                                        </div>
-                                        <span className="bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-full uppercase tracking-wide">
-                                            Hiring
-                                        </span>
-                                    </div>
-
-                                    <h3 className="text-lg font-bold text-gray-900 mb-1 line-clamp-1">{company.companyName}</h3>
-                                    <div className="flex items-center gap-1 text-sm text-gray-500 mb-4">
-                                        <MapPin size={14} />
-                                        <span>{company.contact?.city ? `${company.contact.city}, ${company.contact.state}` : 'Multiple Locations'}</span>
-                                    </div>
-
-                                    <p className="text-sm text-gray-600 line-clamp-3 mb-6">
-                                        {company.description || "Join our team of professional drivers. We offer competitive pay and great benefits."}
-                                    </p>
-                                </div>
-
-                                <div className="pt-4 border-t border-gray-100">
-                                    <button
-                                        disabled={applying[company.id] || applied[company.id]}
-                                        className={`w-full py-2.5 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${applied[company.id]
-                                            ? 'bg-green-100 text-green-700 cursor-default'
-                                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                            }`}
-                                        onClick={async () => {
-                                            const currentUser = auth.currentUser;
-                                            if (!currentUser) {
-                                                alert("Please log in to apply.");
-                                                return;
-                                            }
-
-                                            setApplying(prev => ({ ...prev, [job.id]: true }));
-                                            try {
-                                                await submitApplication(job.companyId, job, currentUser.uid);
-                                                setApplied(prev => ({ ...prev, [job.id]: true }));
-                                            } catch (err) {
-                                                console.error(err);
-                                                alert("Failed to apply: " + err.message);
-                                            } finally {
-                                                setApplying(prev => ({ ...prev, [job.id]: false }));
-                                            }
-                                        }}
-                                    >
-                                        {applying[company.id] ? (
-                                            <><Loader2 className="animate-spin" size={16} /> Sending...</>
-                                        ) : applied[company.id] ? (
-                                            <><Check size={16} /> Applied</>
-                                        ) : (
-                                            <>Apply Now <ArrowRight size={16} /></>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
+                            <JobOfferCard
+                                key={job.id}
+                                job={job}
+                                isApplying={applying[job.id]}
+                                isApplied={applied[job.id]}
+                                onApply={() => handleApply(job)}
+                            />
                         ))}
                     </div>
                 )}
