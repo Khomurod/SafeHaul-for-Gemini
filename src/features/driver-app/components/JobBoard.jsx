@@ -5,11 +5,12 @@ import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Briefcase, Search, Loader2 } from 'lucide-react';
 import { submitApplication } from '../../applications/services/applicationService';
 import { JobOfferCard } from './dashboard/JobOfferCard';
+import { DriverApplicationWizard } from './application/DriverApplicationWizard';
 
 export default function JobBoard() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [applying, setApplying] = useState({}); // Map of jobId -> boolean
+    const [selectedJob, setSelectedJob] = useState(null);
     const [applied, setApplied] = useState({}); // Map of jobId -> boolean
     const [filter, setFilter] = useState({
         type: 'all', // all, local, regional, otr
@@ -21,7 +22,6 @@ export default function JobBoard() {
     useEffect(() => {
         const fetchJobs = async () => {
             try {
-                // Fetch from new job_posts collection
                 const q = query(
                     collection(db, 'job_posts'),
                     where('status', '==', 'active'),
@@ -45,39 +45,44 @@ export default function JobBoard() {
         fetchJobs();
     }, []);
 
-    const handleApply = async (job) => {
+    useEffect(() => {
+        const checkApplied = async () => {
+            const currentUser = auth.currentUser;
+            if (!currentUser) return;
+
+            try {
+                // If we want to check applications across all companies, we'd normally use a collectionGroup query.
+                // For now, we'll just track it via the successful submission in this session
+                // or assume the user will see their applied status next time they load if we add the logic.
+                // NOTE: For simplicity, we'll just handle the session state for now or add a more robust check if needed.
+            } catch (error) {
+                console.error("Error checking applications:", error);
+            }
+        };
+
+        checkApplied();
+    }, []);
+
+    const handleApplySuccess = (jobId) => {
+        setApplied(prev => ({ ...prev, [jobId]: true }));
+        setSelectedJob(null);
+    };
+
+    const handleApply = (job) => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
             alert("Please log in to apply.");
             return;
         }
-
-        setApplying(prev => ({ ...prev, [job.id]: true }));
-        try {
-            await submitApplication(job.companyId, job, currentUser.uid);
-            setApplied(prev => ({ ...prev, [job.id]: true }));
-        } catch (err) {
-            console.error(err);
-            alert("Failed to apply: " + err.message);
-        } finally {
-            setApplying(prev => ({ ...prev, [job.id]: false }));
-        }
+        setSelectedJob(job);
     };
 
     // --- Filtering Logic ---
     const filteredJobs = jobs.filter(job => {
-        // Route Type Filter
         if (filter.type !== 'all' && job.routeType !== filter.type) return false;
-
-        // Freight Type Filter (Array check)
         if (filter.freight !== 'all' && !job.freightTypes?.includes(filter.freight)) return false;
-
-        // Position Type Filter
         if (filter.positionType !== 'all' && job.positionType !== filter.positionType) return false;
-
-        // Min Pay Filter (Weekly estimated)
         if (filter.minPay > 0 && (job.estimatedWeeklyPay || 0) < filter.minPay) return false;
-
         return true;
     });
 
@@ -99,7 +104,6 @@ export default function JobBoard() {
             </div>
 
             <main className="max-w-6xl mx-auto px-6 py-8">
-
                 {/* Filters */}
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 mb-8 grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="space-y-1">
@@ -181,7 +185,6 @@ export default function JobBoard() {
                             <JobOfferCard
                                 key={job.id}
                                 job={job}
-                                isApplying={applying[job.id]}
                                 isApplied={applied[job.id]}
                                 onApply={() => handleApply(job)}
                             />
@@ -189,6 +192,17 @@ export default function JobBoard() {
                     </div>
                 )}
             </main>
+
+            {/* Modal Wizard */}
+            {selectedJob && (
+                <DriverApplicationWizard
+                    isOpen={!!selectedJob}
+                    onClose={() => setSelectedJob(null)}
+                    onSuccess={handleApplySuccess}
+                    job={selectedJob}
+                    companyId={selectedJob.companyId}
+                />
+            )}
         </div>
     );
 }
