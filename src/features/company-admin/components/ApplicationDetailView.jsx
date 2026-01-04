@@ -129,10 +129,18 @@ export function ApplicationDetailView({
               {loading ? "Loading..." : currentAppName}
             </h2>
             {!loading && appData && (
-              <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
-                <span className="px-2 py-0.5 bg-gray-100 rounded text-xs border border-gray-200 font-mono">{appData.id}</span>
-                &bull; {appData.email}
-              </p>
+              <div className="flex flex-col gap-1 mt-1">
+                {appData.jobTitle && (
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100 self-start">
+                    <Briefcase size={12} />
+                    Applied for: {appData.jobTitle}
+                  </div>
+                )}
+                <p className="text-sm text-gray-500 flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-gray-100 rounded text-xs border border-gray-200 font-mono">{appData.id}</span>
+                  &bull; {appData.email}
+                </p>
+              </div>
             )}
           </div>
           <div className="flex items-center gap-3">
