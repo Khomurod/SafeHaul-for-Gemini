@@ -7,7 +7,7 @@ import {
     collection, query, where, getDocs,
     addDoc, updateDoc, doc, deleteDoc, serverTimestamp
 } from 'firebase/firestore';
-import { db } from '../../../../../lib/firebase'; // Adjust path as needed
+import { db } from '@lib/firebase'; // Adjust path as needed
 import { JobWizard } from './JobWizard';
 
 export function JobPostingManager({ companyId, companyName, logoUrl }) {
@@ -166,8 +166,8 @@ export function JobPostingManager({ companyId, companyName, logoUrl }) {
                                 <button
                                     onClick={() => handleToggleStatus(job)}
                                     className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold ${job.status === 'active'
-                                            ? 'text-amber-600 hover:bg-amber-50'
-                                            : 'text-emerald-600 hover:bg-emerald-50'
+                                        ? 'text-amber-600 hover:bg-amber-50'
+                                        : 'text-emerald-600 hover:bg-emerald-50'
                                         }`}
                                 >
                                     {job.status === 'active' ? (

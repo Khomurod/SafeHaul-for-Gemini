@@ -3,13 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
 import {
     Building, User, CreditCard, CheckCircle,
-    FileSignature, Blocks, ArrowLeft, Users, Mail, Facebook
+    FileSignature, Blocks, ArrowLeft, Users, Mail, Facebook, Briefcase
 } from 'lucide-react';
 
 import { CompanyProfileTab } from './CompanyProfileTab';
 import { TeamManagementTab } from './TeamManagementTab';
 import { EmailSettingsTab } from './EmailSettingsTab';
 import { PersonalProfileTab } from './PersonalProfileTab';
+import { JobPostingManager } from './hiring/JobPostingManager';
 import { ManageTeamModal } from '@shared/components/modals';
 import { UnderDevelopmentAnimation } from '@shared/components/admin/UnderDevelopmentAnimation';
 import { ESignatureAnimation } from '@shared/components/admin/ESignatureAnimation';
@@ -82,6 +83,14 @@ export function CompanySettings() {
                         onShowSuccess={showSuccess}
                     />
                 );
+            case 'hiring':
+                return (
+                    <JobPostingManager
+                        companyId={currentCompanyProfile?.id}
+                        companyName={currentCompanyProfile?.name}
+                        logoUrl={currentCompanyProfile?.logoUrl}
+                    />
+                );
             case 'integrations':
                 return <UnderDevelopmentAnimation />;
             case 'facebook':
@@ -131,6 +140,7 @@ export function CompanySettings() {
                         <div className="sticky top-24 space-y-1 bg-white/50 backdrop-blur-md rounded-2xl p-2 border border-slate-200/60 shadow-sm">
                             <h3 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-2">Organization</h3>
                             <SidebarItem id="company" label="Company Profile" icon={Building} activeTab={activeTab} onClick={setActiveTab} />
+                            <SidebarItem id="hiring" label="Job Board" icon={Briefcase} activeTab={activeTab} onClick={setActiveTab} />
                             <SidebarItem id="team" label="Team & Users" icon={Users} activeTab={activeTab} onClick={setActiveTab} />
 
                             <h3 className="px-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-6 mb-3">Communication</h3>
