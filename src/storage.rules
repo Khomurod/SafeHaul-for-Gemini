@@ -8,7 +8,8 @@ service firebase.storage {
     
     // ROBUST SUPER ADMIN CHECK (Aligned with Firestore)
     function isSuperAdmin() {
-      return isSignedIn() && (
+      return isSignedIn() && 
+             request.auth.token.email_verified == true && ( // FIX: Require email verification
          request.auth.token.email.matches('.*@safehaul\\.io$') || 
          (request.auth.token.keys().hasAny(['roles']) && request.auth.token.roles.keys().hasAny(['globalRole']) && request.auth.token.roles.globalRole == 'super_admin') ||
          (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin')
@@ -61,9 +62,9 @@ service firebase.storage {
     // 4. Secure Documents (E-Signature Envelopes and Templates)
     // Path: secure_documents/{companyId}/{folder}/{fileName}
     match /secure_documents/{companyId}/{folder}/{allPaths=**} {
-       // Read: Company Team OR Super Admin
-       // In one-off sends, the recipient doesn't authenticate via UID necessarily, 
-       // but the public signing flow uses its own logic (or signed URLs)
+       // Read: Company Team OR Super Admin. 
+       // NOTE: Drivers/Recipients access these via generated Signed URLs from the backend.
+       // We allow authenticated reads if they are explicitly part of the company team.
        allow read: if isCompanyTeam(companyId) || isSuperAdmin();
        
        // Write: Company Team Only

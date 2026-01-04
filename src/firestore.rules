@@ -24,7 +24,8 @@ service cloud.firestore {
 
     // ROBUST SUPER ADMIN CHECK
     function isSuperAdmin() {
-      return isSignedIn() && (
+      return isSignedIn() && 
+             request.auth.token.email_verified == true && ( // FIX: Require email verification
          request.auth.token.email.matches('.*@safehaul\\.io$') || 
          (request.auth.token.keys().hasAny(['roles']) && request.auth.token.roles.keys().hasAny(['globalRole']) && request.auth.token.roles.globalRole == 'super_admin') ||
          (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin')
@@ -120,7 +121,9 @@ service cloud.firestore {
                             isSignedIn() && 
                             resource.data.recipientId == request.auth.uid && 
                             // Only allow updating status fields
-                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'viewedAt', 'declinedReason', 'clientMetadata', 'signedAt', 'signatureData'])
+                            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'viewedAt', 'declinedReason', 'clientMetadata', 'signedAt', 'signatureData']) &&
+                            // FIX: Validate signature integrity
+                            (request.resource.data.status == 'signed' ? request.resource.data.signatureData != null : true)
                        );
          allow delete: if isCompanyAdmin(companyId);
       }
@@ -129,7 +132,7 @@ service cloud.firestore {
       match /applications/{applicationId} {
         // CREATE: 
         // 1. Auth User (Driver) -> Submitting their own app
-        // 2. Guest -> Submitting via public link
+        // 2. Guest -> Submitting via public link (TODO: Add App Check enforcement here for production)
         // 3. Super Admin / Company Team (Manual Entry)
         allow create: if (isSignedIn() && isValidAuthenticatedApplication()) || 
                          (isValidGuestApplication(companyId)) || 

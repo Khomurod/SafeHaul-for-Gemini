@@ -31,7 +31,7 @@ function RootRedirect() {
   if (!currentUser) return <Navigate to="/login" />;
 
   if (userRole === 'super_admin') return <Navigate to="/super-admin" />;
-  if (userRole === 'admin') return <Navigate to="/company/dashboard" />;
+  if (userRole === 'company_admin') return <Navigate to="/company/dashboard" />;
   if (userRole === 'driver') return <Navigate to="/driver/dashboard" />;
 
   return <GlobalLoadingState />;
@@ -50,74 +50,74 @@ function AppRoutes() {
   const { currentCompanyProfile } = useData();
 
   return (
-      <Suspense fallback={<GlobalLoadingState />}>
-        <Routes>
-            {/* --- PUBLIC ROUTES (No Login Required) --- */}
-            <Route path="/login" element={<LoginScreen />} />
-            <Route path="/join/:companyId" element={<TeamMemberSignup />} />
+    <Suspense fallback={<GlobalLoadingState />}>
+      <Routes>
+        {/* --- PUBLIC ROUTES (No Login Required) --- */}
+        <Route path="/login" element={<LoginScreen />} />
+        <Route path="/join/:companyId" element={<TeamMemberSignup />} />
 
-            {/* Public Driver Routes */}
-            <Route path="/apply/:slug" element={<PublicApplyHandler />} />
+        {/* Public Driver Routes */}
+        <Route path="/apply/:slug" element={<PublicApplyHandler />} />
 
-            {/* FIX: New route for personalized recruiter invites */}
-            <Route path="/interest/:slug" element={<InterestPage />} /> 
+        {/* FIX: New route for personalized recruiter invites */}
+        <Route path="/interest/:slug" element={<InterestPage />} />
 
-            {/* Signing Room (Publicly Accessible via Token) */}
-            <Route path="/sign/:companyId/:requestId" element={<SigningRoom />} />
+        {/* Signing Room (Publicly Accessible via Token) */}
+        <Route path="/sign/:companyId/:requestId" element={<SigningRoom />} />
 
-            {/* --- PROTECTED ROUTES (Login Required) --- */}
+        {/* --- PROTECTED ROUTES (Login Required) --- */}
 
-            {/* Super Admin */}
-            <Route path="/super-admin/*" element={
-                <ProtectedRoute allowedRoles={['super_admin']}>
-                    <SuperAdminDashboard />
-                </ProtectedRoute>
-            } />
+        {/* Super Admin */}
+        <Route path="/super-admin/*" element={
+          <ProtectedRoute allowedRoles={['super_admin']}>
+            <SuperAdminDashboard />
+          </ProtectedRoute>
+        } />
 
-            {/* Company Admin / HR */}
-            <Route path="/company/dashboard" element={
-                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                    {currentCompanyProfile ? <CompanyAdminDashboard /> : <div className="min-h-screen flex items-center justify-center">Please select a company.</div>}
-                </ProtectedRoute>
-            } />
+        {/* Company Admin / HR */}
+        <Route path="/company/dashboard" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            {currentCompanyProfile ? <CompanyAdminDashboard /> : <div className="min-h-screen flex items-center justify-center">Please select a company.</div>}
+          </ProtectedRoute>
+        } />
 
-            {/* Documents Center Hub */}
-            <Route path="/company/documents" element={
-                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                     <DocumentsManager />
-                </ProtectedRoute>
-            } />
+        {/* Documents Center Hub */}
+        <Route path="/company/documents" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            <DocumentsManager />
+          </ProtectedRoute>
+        } />
 
-            <Route path="/company/settings" element={
-                <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
-                    {currentCompanyProfile ? <CompanySettings /> : <Navigate to="/company/dashboard" />}
-                </ProtectedRoute>
-            } />
+        <Route path="/company/settings" element={
+          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+            {currentCompanyProfile ? <CompanySettings /> : <Navigate to="/company/dashboard" />}
+          </ProtectedRoute>
+        } />
 
-            {/* Driver App */}
-            <Route path="/driver/dashboard" element={
-                <ProtectedRoute allowedRoles={['driver']}>
-                    <DriverDashboard />
-                </ProtectedRoute>
-            } />
+        {/* Driver App */}
+        <Route path="/driver/dashboard" element={
+          <ProtectedRoute allowedRoles={['driver']}>
+            <DriverDashboard />
+          </ProtectedRoute>
+        } />
 
-            <Route path="/driver/apply" element={
-                <ProtectedRoute allowedRoles={['driver']}>
-                    <DriverApplicationWizard />
-                </ProtectedRoute>
-            } />
+        <Route path="/driver/apply" element={
+          <ProtectedRoute allowedRoles={['driver']}>
+            <DriverApplicationWizard />
+          </ProtectedRoute>
+        } />
 
-            <Route path="/driver/apply/:companyId" element={
-                <ProtectedRoute allowedRoles={['driver']}>
-                    <DriverApplicationWizard />
-                </ProtectedRoute>
-            } />
+        <Route path="/driver/apply/:companyId" element={
+          <ProtectedRoute allowedRoles={['driver']}>
+            <DriverApplicationWizard />
+          </ProtectedRoute>
+        } />
 
-            {/* Fallbacks */}
-            <Route path="/" element={<RootRedirect />} />
-            <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </Suspense>
+        {/* Fallbacks */}
+        <Route path="/" element={<RootRedirect />} />
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </Suspense>
   );
 }
 
@@ -126,9 +126,9 @@ export default function App() {
     <ErrorBoundary>
       <ToastProvider>
         <DataProvider>
-           <Router>
-             <AppRoutes />
-           </Router>
+          <Router>
+            <AppRoutes />
+          </Router>
         </DataProvider>
       </ToastProvider>
     </ErrorBoundary>

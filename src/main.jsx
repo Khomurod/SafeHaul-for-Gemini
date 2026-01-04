@@ -8,12 +8,8 @@ import { pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 
-// Force the worker to use the locally installed 'pdfjs-dist' version (5.4.296)
-// instead of pulling a potentially mismatched version from a CDN.
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url,
-).toString();
+// Force the worker to use the CDN version (5.4.296) to avoid 404s in production build
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs`;
 // -------------------------------
 
 ReactDOM.createRoot(document.getElementById('root')).render(
