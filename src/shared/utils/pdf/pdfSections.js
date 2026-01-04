@@ -282,3 +282,31 @@ export function addHosTable(doc, y, data) {
 
     return y + rowHeight + PDF_CONFIG.SECTION_GAP;
 }
+
+export function addAddressHistorySection(doc, y, applicant) {
+    y = addTableHeader(doc, y, "Address History");
+
+    // 1. Current Address
+    const currentAddr = `${getFieldValue(applicant?.street)}, ${getFieldValue(applicant?.city)}, ${getFieldValue(applicant?.state)} ${getFieldValue(applicant?.zip)}`;
+    y = addTableRow(doc, y, "Current Address:", currentAddr);
+    y = addTableRow(doc, y, "Lived here 3+ Yrs:", applicant?.['residence-3-years']);
+
+    // 2. Previous Addresses (Array)
+    if (applicant?.previousAddresses && Array.isArray(applicant.previousAddresses) && applicant.previousAddresses.length > 0) {
+        applicant.previousAddresses.forEach((addr, i) => {
+            const addrStr = `${getFieldValue(addr.street)}, ${getFieldValue(addr.city)}, ${getFieldValue(addr.state)} ${getFieldValue(addr.zip)}`;
+            const dates = (addr.startDate || addr.endDate) ? ` (${addr.startDate || 'N/A'} - ${addr.endDate || 'Present'})` : '';
+            y = addTableRow(doc, y, `Prev Address ${i + 1}:`, addrStr + dates);
+        });
+    }
+    // 3. Fallback for legacy "prevStreet" fields
+    else if (applicant?.['residence-3-years'] === 'no' && applicant?.prevStreet) {
+        const legacyAddr = `${getFieldValue(applicant.prevStreet)}, ${getFieldValue(applicant.prevCity)}, ${getFieldValue(applicant.prevState)} ${getFieldValue(applicant.prevZip)}`;
+        y = addTableRow(doc, y, "Previous Address:", legacyAddr);
+    }
+
+    y = addTableRow(doc, y, "Phone:", applicant?.phone);
+    y = addTableRow(doc, y, "Email:", applicant?.email);
+
+    return y;
+}

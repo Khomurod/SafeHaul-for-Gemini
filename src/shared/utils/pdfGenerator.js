@@ -3,14 +3,15 @@ import { jsPDF } from "jspdf";
 import { getFieldValue } from '@shared/utils/helpers';
 import { PDF_CONFIG } from '@shared/utils/pdf/pdfConfig';
 import { addTableHeader, addTableRow, addFullWidthText, checkPageBreak } from '@shared/utils/pdf/pdfHelpers';
-import { 
-    addPageHeader, 
-    addAgreementHeader, 
-    addSignatureBlock, 
+import {
+    addPageHeader,
+    addAgreementHeader,
+    addSignatureBlock,
     addHosTable,
     addEmploymentSection,
     addDrivingHistorySection,
-    addCustomQuestionsSection
+    addCustomQuestionsSection,
+    addAddressHistorySection
 } from '@shared/utils/pdf/pdfSections';
 
 // --- FULL LEGAL TEXT CONSTANTS ---
@@ -71,10 +72,10 @@ export function generateApplicationPDF(pdfData) {
     // Robust Destructuring with Defaults
     const { applicant = {}, agreements = [], company = {} } = pdfData;
 
-    const companyProfile = company || { 
-        companyName: "[COMPANY NAME NOT FOUND]", 
-        address: {}, 
-        contact: {} 
+    const companyProfile = company || {
+        companyName: "[COMPANY NAME NOT FOUND]",
+        address: {},
+        contact: {}
     };
 
     const companyName = companyProfile?.companyName || "[COMPANY NAME]";
@@ -101,14 +102,7 @@ export function generateApplicationPDF(pdfData) {
     y = addTableRow(doc, y, "Date of Birth:", applicant?.dob);
 
     // --- 3. Address History ---
-    y = addTableHeader(doc, y, "Address History");
-    y = addTableRow(doc, y, "Current Address:", `${getFieldValue(applicant?.street)}, ${getFieldValue(applicant?.city)}, ${getFieldValue(applicant?.state)} ${getFieldValue(applicant?.zip)}`);
-    y = addTableRow(doc, y, "Lived here 3+ Yrs:", applicant?.['residence-3-years']);
-    if (applicant?.['residence-3-years'] === 'no') {
-        y = addTableRow(doc, y, "Previous Address:", `${getFieldValue(applicant?.prevStreet)}, ${getFieldValue(applicant?.prevCity)}, ${getFieldValue(applicant?.prevState)} ${getFieldValue(applicant?.prevZip)}`);
-    }
-    y = addTableRow(doc, y, "Phone:", applicant?.phone);
-    y = addTableRow(doc, y, "Email:", applicant?.email);
+    y = addAddressHistorySection(doc, y, applicant);
 
     // --- 4. General Qualifications ---
     y = addTableHeader(doc, y, "General Qualifications");
@@ -148,7 +142,7 @@ export function generateApplicationPDF(pdfData) {
     // Schools
     if (applicant?.schools && applicant.schools.length > 0) {
         applicant.schools.forEach((s, i) => {
-            y = addTableRow(doc, y, `School #${i+1}`, `${s.name || 'N/A'} (${s.location || 'N/A'}) - ${s.dates || 'N/A'}`);
+            y = addTableRow(doc, y, `School #${i + 1}`, `${s.name || 'N/A'} (${s.location || 'N/A'}) - ${s.dates || 'N/A'}`);
         });
     } else {
         y = addTableRow(doc, y, "Education", "No driving schools listed.");
@@ -157,7 +151,7 @@ export function generateApplicationPDF(pdfData) {
     // Military
     if (applicant?.military && applicant.military.length > 0) {
         applicant.military.forEach((m, i) => {
-            y = addTableRow(doc, y, `Military #${i+1}`, `${m.branch} (${m.rank}) | ${m.start} - ${m.end} | Hon: ${m.honorable}`);
+            y = addTableRow(doc, y, `Military #${i + 1}`, `${m.branch} (${m.rank}) | ${m.start} - ${m.end} | Hon: ${m.honorable}`);
         });
     } else {
         y = addTableRow(doc, y, "Military", "No military service listed.");
@@ -197,21 +191,21 @@ export function generateApplicationPDF(pdfData) {
     const replaceCompany = (text) => text.replaceAll('Company', companyName).replaceAll('Prospective Employer', companyName);
 
     const standardAgreements = [
-        { 
-            title: "AGREEMENT TO CONDUCT TRANSACTION ELECTRONICALLY", 
-            text: replaceCompany(TEXT_ELECTRONIC_SIG) 
+        {
+            title: "AGREEMENT TO CONDUCT TRANSACTION ELECTRONICALLY",
+            text: replaceCompany(TEXT_ELECTRONIC_SIG)
         },
-        { 
-            title: "BACKGROUND CHECK DISCLOSURE AND AUTHORIZATION", 
-            text: replaceCompany(TEXT_FCRA_DISCLOSURE) 
+        {
+            title: "BACKGROUND CHECK DISCLOSURE AND AUTHORIZATION",
+            text: replaceCompany(TEXT_FCRA_DISCLOSURE)
         },
-        { 
-            title: "FMCSA PSP DISCLOSURE AND AUTHORIZATION", 
-            text: replaceCompany(TEXT_PSP_DISCLOSURE) 
+        {
+            title: "FMCSA PSP DISCLOSURE AND AUTHORIZATION",
+            text: replaceCompany(TEXT_PSP_DISCLOSURE)
         },
-        { 
-            title: "FMCSA CLEARINGHOUSE FULL QUERY CONSENT", 
-            text: replaceCompany(TEXT_CLEARINGHOUSE_CONSENT) 
+        {
+            title: "FMCSA CLEARINGHOUSE FULL QUERY CONSENT",
+            text: replaceCompany(TEXT_CLEARINGHOUSE_CONSENT)
         }
     ];
 
@@ -226,11 +220,11 @@ export function generateApplicationPDF(pdfData) {
 
     // --- Footer ---
     const pageCount = doc.internal.getNumberOfPages();
-    for(let i = 1; i <= pageCount; i++) {
-        doc.setPage(i); 
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
         doc.setFont(PDF_CONFIG.FONT.NORMAL, "normal");
         doc.setFontSize(9);
-        doc.setTextColor(100, 100, 100); 
+        doc.setTextColor(100, 100, 100);
         doc.text(applicantName, PDF_CONFIG.MARGIN, PDF_CONFIG.PAGE_HEIGHT - 10);
         doc.text(`Page ${i} of ${pageCount}`, PDF_CONFIG.PAGE_WIDTH - PDF_CONFIG.MARGIN, PDF_CONFIG.PAGE_HEIGHT - 10, { align: 'right' });
     }

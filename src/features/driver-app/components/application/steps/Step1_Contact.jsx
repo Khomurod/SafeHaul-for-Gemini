@@ -222,7 +222,7 @@ const Step1_Contact = ({ formData, updateFormData, onNavigate, onPartialSubmit }
                         listKey="previousAddresses"
                         formData={formData}
                         updateFormData={updateFormData}
-                        initialItemState={{ street: '', city: '', state: '', zip: '' }}
+                        initialItemState={{ street: '', city: '', state: '', zip: '', startDate: '', endDate: '' }}
                         addButtonLabel="Add Previous Address"
                         renderRow={(index, item, handleChange) => (
                             <div className="space-y-4">
@@ -266,6 +266,26 @@ const Step1_Contact = ({ formData, updateFormData, onNavigate, onPartialSubmit }
                                         value={item.zip}
                                         onChange={(n, v) => handleChange('zip', v)}
                                         placeholder="Zip"
+                                        required={true}
+                                    />
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <InputField
+                                        label="From Date"
+                                        id={`prev-start-${index}`}
+                                        name="startDate"
+                                        type="month"
+                                        value={item.startDate}
+                                        onChange={(n, v) => handleChange('startDate', v)}
+                                        required={true}
+                                    />
+                                    <InputField
+                                        label="To Date"
+                                        id={`prev-end-${index}`}
+                                        name="endDate"
+                                        type="month"
+                                        value={item.endDate}
+                                        onChange={(n, v) => handleChange('endDate', v)}
                                         required={true}
                                     />
                                 </div>
