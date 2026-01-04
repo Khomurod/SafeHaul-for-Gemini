@@ -47,9 +47,9 @@ exports.getSignedUploadUrl = functions.https.onCall(async (data, context) => {
         });
 
         return {
-            uploadUrl: url,
+            url: url,
             storagePath: finalPath,
-            publicUrl: `https://storage.googleapis.com/${bucket.name}/${finalPath}` // Or a download token logic if private
+            publicUrl: `https://storage.googleapis.com/${bucket.name}/${finalPath}`
         };
     } catch (e) {
         console.error("Error generating signed URL:", e);

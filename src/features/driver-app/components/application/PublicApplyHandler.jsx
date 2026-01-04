@@ -108,7 +108,7 @@ export function PublicApplyHandler() {
 
       const getSignedUrlFn = httpsCallable(functions, 'getSignedUploadUrl');
 
-      const { data: { uploadUrl, storagePath, publicUrl } } = await getSignedUrlFn({
+      const { data: { url, storagePath, publicUrl } } = await getSignedUrlFn({
         companyId: company.id,
         fileName: file.name,
         fileType: file.type,
@@ -116,7 +116,7 @@ export function PublicApplyHandler() {
       });
 
       // 2. Perform PUT Request to Google Cloud Storage
-      const uploadRes = await fetch(uploadUrl, {
+      const uploadRes = await fetch(url, {
         method: 'PUT',
         headers: { 'Content-Type': file.type },
         body: file
