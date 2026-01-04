@@ -1,31 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db, functions } from '../../../lib/firebase'; // Adjust path as needed
+import { db, functions, auth } from '../../../lib/firebase'; // Adjust path as needed
 import { httpsCallable } from 'firebase/functions';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, orderBy } from 'firebase/firestore';
 import { Building2, MapPin, ArrowRight, Briefcase, Search, Check, Loader2 } from 'lucide-react';
+import { submitApplication } from '../../applications/services/applicationService';
 
 export default function JobBoard() {
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [applying, setApplying] = useState({}); // Map of companyId -> boolean
-    const [applied, setApplied] = useState({}); // Map of companyId -> boolean
+    const [applying, setApplying] = useState({}); // Map of jobId -> boolean
+    const [applied, setApplied] = useState({}); // Map of jobId -> boolean
+    const [filter, setFilter] = useState({
+        type: 'all', // all, local, regional, otr
+        freight: 'all', // dryVan, flatbed, reefer, tanker
+        minPay: 0
+    });
 
     useEffect(() => {
         const fetchJobs = async () => {
             try {
-                // Query companies that are publicly hiring
+                // Fetch from new job_posts collection
                 const q = query(
-                    collection(db, "companies"),
-                    where("isHiring", "==", true),
-                    limit(20)
+                    collection(db, 'job_posts'),
+                    where('status', '==', 'active'),
+                    orderBy('createdAt', 'desc')
                 );
+
                 const snapshot = await getDocs(q);
-                const jobList = snapshot.docs.map(doc => ({
+                const loadedJobs = snapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
                 }));
-                setJobs(jobList);
+
+                setJobs(loadedJobs);
             } catch (error) {
                 console.error("Error fetching jobs:", error);
             } finally {
@@ -35,6 +43,20 @@ export default function JobBoard() {
 
         fetchJobs();
     }, []);
+
+    // --- Filtering Logic ---
+    const filteredJobs = jobs.filter(job => {
+        // Route Type Filter
+        if (filter.type !== 'all' && job.routeType !== filter.type) return false;
+
+        // Freight Type Filter (Array check)
+        if (filter.freight !== 'all' && !job.freightTypes?.includes(filter.freight)) return false;
+
+        // Min Pay Filter (Weekly estimated)
+        if (filter.minPay > 0 && (job.estimatedWeeklyPay || 0) < filter.minPay) return false;
+
+        return true;
+    });
 
     return (
         <div className="min-h-screen bg-gray-50 pb-10">
@@ -71,7 +93,7 @@ export default function JobBoard() {
                             <div key={i} className="bg-white rounded-xl h-48 animate-pulse shadow-sm border border-gray-100"></div>
                         ))}
                     </div>
-                ) : jobs.length === 0 ? (
+                ) : filteredJobs.length === 0 ? (
                     <div className="text-center py-20 bg-white rounded-xl shadow-sm border border-gray-200">
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 text-gray-400">
                             <Briefcase size={32} />
@@ -81,13 +103,13 @@ export default function JobBoard() {
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {jobs.map(company => (
-                            <div key={company.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-6 flex flex-col justify-between h-full">
+                        {filteredJobs.map(job => (
+                            <div key={job.id} className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow p-6 flex flex-col justify-between h-full">
                                 <div>
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500 font-bold text-xl overflow-hidden">
-                                            {company.logo ? (
-                                                <img src={company.logo} alt={company.companyName} className="w-full h-full object-cover" />
+                                            {job.logo ? (
+                                                <img src={job.logo} alt={job.companyName} className="w-full h-full object-cover" />
                                             ) : (
                                                 <Building2 size={24} />
                                             )}
@@ -112,21 +134,25 @@ export default function JobBoard() {
                                     <button
                                         disabled={applying[company.id] || applied[company.id]}
                                         className={`w-full py-2.5 font-bold rounded-lg transition-colors flex items-center justify-center gap-2 ${applied[company.id]
-                                                ? 'bg-green-100 text-green-700 cursor-default'
-                                                : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                                            ? 'bg-green-100 text-green-700 cursor-default'
+                                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
                                             }`}
                                         onClick={async () => {
-                                            setApplying(prev => ({ ...prev, [company.id]: true }));
+                                            const currentUser = auth.currentUser;
+                                            if (!currentUser) {
+                                                alert("Please log in to apply.");
+                                                return;
+                                            }
+
+                                            setApplying(prev => ({ ...prev, [job.id]: true }));
                                             try {
-                                                const submitFn = httpsCallable(functions, 'submitEasyApplication');
-                                                await submitFn({ companyId: company.id });
-                                                setApplied(prev => ({ ...prev, [company.id]: true }));
+                                                await submitApplication(job.companyId, job, currentUser.uid);
+                                                setApplied(prev => ({ ...prev, [job.id]: true }));
                                             } catch (err) {
                                                 console.error(err);
-                                                // Simple alert for now, could use a Toast
-                                                alert(err.message || "Failed to apply.");
+                                                alert("Failed to apply: " + err.message);
                                             } finally {
-                                                setApplying(prev => ({ ...prev, [company.id]: false }));
+                                                setApplying(prev => ({ ...prev, [job.id]: false }));
                                             }
                                         }}
                                     >

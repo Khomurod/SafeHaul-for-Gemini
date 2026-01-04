@@ -1,73 +1,125 @@
 import React, { useState } from 'react';
-import { CheckCircle, XCircle, DollarSign, Calendar, Gift, Loader2 } from 'lucide-react';
+import {
+    MapPin, DollarSign, Briefcase, CheckCircle,
+    ChevronDown, ChevronUp, Truck, Clock
+} from 'lucide-react';
 
-export function JobOfferCard({ offer, onRespond }) {
-  const [processing, setProcessing] = useState(false);
+export function JobOfferCard({ job, onApply }) {
+    const [expanded, setExpanded] = useState(false);
 
-  if (!offer) return null;
+    // Format Pay Display
+    const formatPay = () => {
+        if (job.payModel === 'cpm' || job.payModel === 'percentage') {
+            const unit = job.payModel === 'cpm' ? 'CPM' : '%';
+            return `${job.payMin} - ${job.payMax} ${unit}`;
+        }
+        if (job.payModel === 'flatRate' || job.payModel === 'hourly') {
+            // For flat/hourly, maybe just show the logic or weekly est
+            return `$${job.estimatedWeeklyPay?.toLocaleString()}/wk (Est)`;
+        }
+        return 'Competitive Pay';
+    };
 
-  const handleAction = async (status) => {
-    if (!window.confirm(`Are you sure you want to ${status === 'Offer Accepted' ? 'ACCEPT' : 'DECLINE'} this offer?`)) return;
+    return (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow overflow-hidden group">
+            <div className="p-6">
+                <div className="flex flex-col md:flex-row gap-6">
+                    {/* Logo */}
+                    <div className="flex-shrink-0">
+                        <div className="w-16 h-16 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
+                            {job.companyLogo ? (
+                                <img src={job.companyLogo} alt={job.companyName} className="w-full h-full object-cover" />
+                            ) : (
+                                <Briefcase className="text-gray-400" size={32} />
+                            )}
+                        </div>
+                    </div>
 
-    setProcessing(true);
-    try {
-        await onRespond(status);
-    } catch (e) {
-        console.error(e);
-        setProcessing(false);
-    }
-  };
+                    {/* Content */}
+                    <div className="flex-1">
+                        <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-4">
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                    {job.title}
+                                </h3>
+                                <div className="flex items-center gap-2 text-gray-500 mt-1 text-sm font-medium">
+                                    <span>{job.companyName}</span>
+                                    <span>•</span>
+                                    <span className="capitalize">{job.routeType}</span>
+                                </div>
 
-  return (
-    <div className="bg-green-50 border border-green-200 rounded-2xl p-6 shadow-sm mb-6">
-        <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-green-100 text-green-700 rounded-full">
-                <Gift size={24} />
-            </div>
-            <div>
-                <h3 className="text-xl font-bold text-green-900">Job Offer Received!</h3>
-                <p className="text-green-700 text-sm">Review the details below.</p>
-            </div>
-        </div>
+                                <div className="flex flex-wrap gap-2 mt-3">
+                                    <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-md border border-emerald-100 uppercase tracking-wider">
+                                        {formatPay()}
+                                    </span>
+                                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-md border border-blue-100 uppercase tracking-wider capitalize">
+                                        {job.positionType?.replace(/([A-Z])/g, ' $1').trim()}
+                                    </span>
+                                    {job.freightTypes?.slice(0, 2).map(ft => (
+                                        <span key={ft} className="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs font-bold rounded-md border border-gray-200 uppercase tracking-wider">
+                                            {ft}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
 
-        <div className="bg-white rounded-xl p-4 border border-green-100 mb-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <p className="text-xs font-bold text-green-800 uppercase mb-1 flex items-center gap-1">
-                        <DollarSign size={14}/> Pay Rate
-                    </p>
-                    <p className="text-lg font-bold text-gray-900">
-                        {offer.payRate} <span className="text-xs font-medium text-gray-500">/ {offer.payType}</span>
-                    </p>
+                            <div className="flex-shrink-0">
+                                <button
+                                    onClick={onApply}
+                                    className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm w-full md:w-auto transition-colors"
+                                >
+                                    Apply Now
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <p className="text-xs font-bold text-green-800 uppercase mb-1 flex items-center gap-1">
-                        <Calendar size={14}/> Start Date
-                    </p>
-                    <p className="text-lg font-bold text-gray-900">
-                        {offer.startDate ? new Date(offer.startDate).toLocaleDateString() : 'TBD'}
-                    </p>
+
+                {/* Quick Info Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 py-4 border-t border-b border-gray-100">
+                    <div>
+                        <span className="text-xs text-gray-400 font-bold uppercase tracking-wider block mb-1">Weekly Avg</span>
+                        <span className="text-sm font-bold text-gray-900">${job.estimatedWeeklyPay?.toLocaleString()}</span>
+                    </div>
+                    <div>
+                        <span className="text-xs text-gray-400 font-bold uppercase tracking-wider block mb-1">Home Time</span>
+                        <span className="text-sm font-bold text-gray-900">Weekly</span>
+                    </div>
+                    <div>
+                        <span className="text-xs text-gray-400 font-bold uppercase tracking-wider block mb-1">Experience</span>
+                        <span className="text-sm font-bold text-gray-900 capitalize">{job.minExperience?.replace(/([A-Z])/g, ' $1').trim()}</span>
+                    </div>
+                    <div>
+                        <span className="text-xs text-gray-400 font-bold uppercase tracking-wider block mb-1">Hiring Areas</span>
+                        <span className="text-sm font-bold text-gray-900">{job.hiringStates?.length > 0 ? `${job.hiringStates.length} States` : 'Nationwide'}</span>
+                    </div>
                 </div>
+
+                {/* Expanded Details */}
+                {expanded && (
+                    <div className="mt-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                            <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3">Benefits & Perks</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {Object.entries(job.benefits || {}).filter(([_, v]) => v).map(([key, value]) => (
+                                    <div key={key} className="flex items-center gap-2">
+                                        <CheckCircle size={14} className="text-emerald-500" />
+                                        <span className="text-sm text-gray-600 font-medium capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="w-full mt-4 flex items-center justify-center gap-1 text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors"
+                >
+                    {expanded ? 'Show Less' : 'View Details'}
+                    {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
             </div>
         </div>
-
-        <div className="flex gap-3">
-            <button 
-                onClick={() => handleAction('Offer Declined')}
-                disabled={processing}
-                className="flex-1 py-3 bg-white border border-gray-300 text-gray-600 font-bold rounded-xl hover:bg-gray-50 flex items-center justify-center gap-2"
-            >
-                <XCircle size={18} /> Decline
-            </button>
-            <button 
-                onClick={() => handleAction('Offer Accepted')}
-                disabled={processing}
-                className="flex-[2] py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-md flex items-center justify-center gap-2"
-            >
-                {processing ? <Loader2 className="animate-spin" size={18}/> : <CheckCircle size={18} />}
-                Accept Offer
-            </button>
-        </div>
-    </div>
-  );
+    );
 }
