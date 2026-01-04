@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db, functions, auth } from '../../../lib/firebase';
+import { db, functions, auth } from '@lib/firebase';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { Briefcase, Search, Loader2 } from 'lucide-react';
 import { submitApplication } from '../../applications/services/applicationService';

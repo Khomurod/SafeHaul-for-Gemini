@@ -131,7 +131,7 @@ export function ApplicationDetailView({
             {!loading && appData && (
               <div className="flex flex-col gap-1 mt-1">
                 {appData.jobTitle && (
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100 self-start">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-100 mb-2">
                     <Briefcase size={12} />
                     Applied for: {appData.jobTitle}
                   </div>
