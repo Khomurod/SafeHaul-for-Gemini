@@ -111,7 +111,7 @@ export function PublicApplyHandler() {
       const { data: { uploadUrl, storagePath, publicUrl } } = await getSignedUrlFn({
         companyId: company.id,
         fileName: file.name,
-        contentType: file.type,
+        fileType: file.type,
         folder: 'applications'
       });
 

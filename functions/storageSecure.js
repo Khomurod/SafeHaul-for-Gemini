@@ -1,4 +1,4 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const functions = require("firebase-functions/v1");
 const { getStorage } = require("firebase-admin/storage");
 const { admin, db } = require("./firebaseAdmin"); // Reuse shared instance
 
@@ -10,19 +10,19 @@ const ALLOWED_MIME_TYPES = [
     'image/jpg'
 ];
 
-exports.getSignedUploadUrl = onCall({ cors: true }, async (request) => {
+exports.getSignedUploadUrl = functions.https.onCall(async (data, context) => {
     // Note: This function is explicitly for GUESTS (and users), so no auth check is strictly required for generation,
     // BUT we must strictly validate the payload to prevent abuse.
 
-    const { companyId, fileName, contentType, folder } = request.data;
+    const { companyId, fileName, fileType, folder } = data;
 
     // 1. Validation
-    if (!companyId || !fileName || !contentType) {
-        throw new HttpsError('invalid-argument', 'Missing file parameters.');
+    if (!companyId || !fileName || !fileType) {
+        throw new functions.https.HttpsError('invalid-argument', 'Missing file parameters (companyId, fileName, or fileType).');
     }
 
-    if (!ALLOWED_MIME_TYPES.includes(contentType)) {
-        throw new HttpsError('invalid-argument', 'Invalid file type. Only PDF and Images are allowed.');
+    if (!ALLOWED_MIME_TYPES.includes(fileType)) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid file type. Only PDF and Images are allowed.');
     }
 
     // Default to 'applications' if not specified or invalid
@@ -43,7 +43,7 @@ exports.getSignedUploadUrl = onCall({ cors: true }, async (request) => {
             version: 'v4',
             action: 'write',
             expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-            contentType: contentType,
+            contentType: fileType,
         });
 
         return {
@@ -53,6 +53,6 @@ exports.getSignedUploadUrl = onCall({ cors: true }, async (request) => {
         };
     } catch (e) {
         console.error("Error generating signed URL:", e);
-        throw new HttpsError('internal', 'Could not generate upload URL.');
+        throw new functions.https.HttpsError('internal', 'Could not generate upload URL.');
     }
 });
