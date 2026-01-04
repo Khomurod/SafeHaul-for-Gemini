@@ -76,20 +76,20 @@ function AppRoutes() {
 
         {/* Company Admin / HR */}
         <Route path="/company/dashboard" element={
-          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['company_admin', 'super_admin']}>
             {currentCompanyProfile ? <CompanyAdminDashboard /> : <div className="min-h-screen flex items-center justify-center">Please select a company.</div>}
           </ProtectedRoute>
         } />
 
         {/* Documents Center Hub */}
         <Route path="/company/documents" element={
-          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['company_admin', 'super_admin']}>
             <DocumentsManager />
           </ProtectedRoute>
         } />
 
         <Route path="/company/settings" element={
-          <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+          <ProtectedRoute allowedRoles={['company_admin', 'super_admin']}>
             {currentCompanyProfile ? <CompanySettings /> : <Navigate to="/company/dashboard" />}
           </ProtectedRoute>
         } />
