@@ -95,11 +95,11 @@ export function isCanvasEmpty() {
         return !pixelBuffer.some(pixel => pixel !== 0);
     } catch (e) {
         console.error("Error reading canvas data:", e);
-        return true; 
+        return true;
     }
 }
 
 export function getSignatureDataUrl() {
-    if (!canvas) return null;
+    if (!canvas || isCanvasEmpty()) return null;
     return canvas.toDataURL('image/png');
 }
