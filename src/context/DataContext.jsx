@@ -10,11 +10,11 @@ import { RoleSelectionModal } from '@shared/components/modals/RoleSelectionModal
 const DataContext = createContext();
 
 export const useData = () => {
-    const context = useContext(DataContext);
-    if (!context) {
-        throw new Error("useData must be used within a DataProvider");
-    }
-    return context;
+  const context = useContext(DataContext);
+  if (!context) {
+    throw new Error("useData must be used within a DataProvider");
+  }
+  return context;
 };
 
 export function DataProvider({ children }) {
@@ -58,121 +58,121 @@ export function DataProvider({ children }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       try {
-          if (user) {
-            setCurrentUser(user);
+        if (user) {
+          setCurrentUser(user);
 
-            // 1. Get Claims
-            const idTokenResult = await user.getIdTokenResult();
-            const claims = idTokenResult.claims;
-            setCurrentUserClaims(claims);
+          // 1. Get Claims
+          const idTokenResult = await user.getIdTokenResult();
+          const claims = idTokenResult.claims;
+          setCurrentUserClaims(claims);
 
-            const roles = claims.roles || {};
-            const companyRoleKeys = Object.keys(roles).filter(k => k !== 'globalRole');
+          const roles = claims.roles || {};
+          const companyRoleKeys = Object.keys(roles).filter(k => k !== 'globalRole');
 
-            const isSuperAdmin = claims.globalRole === 'super_admin' || roles.globalRole === 'super_admin';
-            const hasCompanyRoles = companyRoleKeys.length > 0;
+          const isSuperAdmin = claims.globalRole === 'super_admin' || roles.globalRole === 'super_admin';
+          const hasCompanyRoles = companyRoleKeys.length > 0;
 
-            // 2. Check Driver Profile
-            const driverDoc = await getDoc(doc(db, "drivers", user.uid));
-            const isDriver = driverDoc.exists();
+          // 2. Check Driver Profile
+          const driverDoc = await getDoc(doc(db, "drivers", user.uid));
+          const isDriver = driverDoc.exists();
 
-            setHasDriverProfile(isDriver);
-            setHasEmployerProfile(isSuperAdmin || hasCompanyRoles);
+          setHasDriverProfile(isDriver);
+          setHasEmployerProfile(isSuperAdmin || hasCompanyRoles);
 
-            console.log('[DataContext] User claims:', claims);
-            console.log('[DataContext] Profile detection:', { isDriver, hasCompanyRoles, isSuperAdmin });
+          console.log('[DataContext] User claims:', claims);
+          console.log('[DataContext] Profile detection:', { isDriver, hasCompanyRoles, isSuperAdmin });
 
-            // 3. Cache Platform Stats (Super Admin Only)
-            if (isSuperAdmin) {
-                try {
-                const [companiesSnap, driversSnap] = await Promise.all([
-                    getCountFromServer(collection(db, "companies")),
-                    getCountFromServer(collection(db, "drivers"))
-                ]);
-                const platformStats = {
-                    companies: companiesSnap.data().count || 0,
-                    drivers: driversSnap.data().count || 0,
-                    updatedAt: Date.now()
-                };
-                localStorage.setItem('platformStats', JSON.stringify(platformStats));
-                } catch (statsErr) {
-                console.warn("Could not cache platform stats:", statsErr);
-                }
+          // 3. Cache Platform Stats (Super Admin Only)
+          if (isSuperAdmin) {
+            try {
+              const [companiesSnap, driversSnap] = await Promise.all([
+                getCountFromServer(collection(db, "companies")),
+                getCountFromServer(collection(db, "drivers"))
+              ]);
+              const platformStats = {
+                companies: companiesSnap.data().count || 0,
+                drivers: driversSnap.data().count || 0,
+                updatedAt: Date.now()
+              };
+              localStorage.setItem('platformStats', JSON.stringify(platformStats));
+            } catch (statsErr) {
+              console.warn("Could not cache platform stats:", statsErr);
             }
-
-            // 4. Determine Initial State / Redirection
-            const savedPortal = localStorage.getItem('selectedPortal');
-
-            if (isSuperAdmin) {
-                setUserRole('super_admin');
-                setSelectedPortal('employer');
-
-                const savedCompanyId = localStorage.getItem('selectedCompanyId');
-                if (savedCompanyId) {
-                await loginToCompany(savedCompanyId, null, true);
-                }
-            } else if (isDriver && hasCompanyRoles) {
-                if (savedPortal === 'driver') {
-                setUserRole('driver');
-                setSelectedPortal('driver');
-                } else if (savedPortal === 'employer') {
-                setUserRole('admin');
-                setSelectedPortal('employer');
-
-                const savedCompanyId = localStorage.getItem('selectedCompanyId');
-                if (savedCompanyId) {
-                    await loginToCompany(savedCompanyId, null, true);
-                } else {
-                    setShowCompanyChooser(true);
-                }
-                } else {
-                setShowRoleSelection(true);
-                setUserRole(null);
-                }
-            } else if (hasCompanyRoles) {
-                setUserRole('admin');
-                setSelectedPortal('employer');
-
-                const savedCompanyId = localStorage.getItem('selectedCompanyId');
-                if (savedCompanyId) {
-                await loginToCompany(savedCompanyId, null, true);
-                } else {
-                setShowCompanyChooser(true);
-                }
-            } else if (isDriver) {
-                setUserRole('driver');
-                setSelectedPortal('driver');
-            } else {
-                // Fallback for users with no clear role yet
-                setUserRole('driver');
-                setSelectedPortal('driver');
-            }
-
-          } else {
-            // No User
-            setCurrentUser(null);
-            setCurrentUserClaims(null);
-            setCurrentCompanyProfile(null);
-            setUserRole(null);
-            setShowCompanyChooser(false);
-            setHasDriverProfile(false);
-            setHasEmployerProfile(false);
-            setShowRoleSelection(false);
-            setSelectedPortal(null);
-            localStorage.removeItem('selectedCompanyId');
-            localStorage.removeItem('selectedPortal');
           }
+
+          // 4. Determine Initial State / Redirection
+          const savedPortal = localStorage.getItem('selectedPortal');
+
+          if (isSuperAdmin) {
+            setUserRole('super_admin');
+            setSelectedPortal('employer');
+
+            const savedCompanyId = localStorage.getItem('selectedCompanyId');
+            if (savedCompanyId) {
+              await loginToCompany(savedCompanyId, null, true);
+            }
+          } else if (isDriver && hasCompanyRoles) {
+            if (savedPortal === 'driver') {
+              setUserRole('driver');
+              setSelectedPortal('driver');
+            } else if (savedPortal === 'employer') {
+              setUserRole('company_admin');
+              setSelectedPortal('employer');
+
+              const savedCompanyId = localStorage.getItem('selectedCompanyId');
+              if (savedCompanyId) {
+                await loginToCompany(savedCompanyId, null, true);
+              } else {
+                setShowCompanyChooser(true);
+              }
+            } else {
+              setShowRoleSelection(true);
+              setUserRole(null);
+            }
+          } else if (hasCompanyRoles) {
+            setUserRole('company_admin');
+            setSelectedPortal('employer');
+
+            const savedCompanyId = localStorage.getItem('selectedCompanyId');
+            if (savedCompanyId) {
+              await loginToCompany(savedCompanyId, null, true);
+            } else {
+              setShowCompanyChooser(true);
+            }
+          } else if (isDriver) {
+            setUserRole('driver');
+            setSelectedPortal('driver');
+          } else {
+            // Fallback for users with no clear role yet
+            setUserRole('driver');
+            setSelectedPortal('driver');
+          }
+
+        } else {
+          // No User
+          setCurrentUser(null);
+          setCurrentUserClaims(null);
+          setCurrentCompanyProfile(null);
+          setUserRole(null);
+          setShowCompanyChooser(false);
+          setHasDriverProfile(false);
+          setHasEmployerProfile(false);
+          setShowRoleSelection(false);
+          setSelectedPortal(null);
+          localStorage.removeItem('selectedCompanyId');
+          localStorage.removeItem('selectedPortal');
+        }
       } catch (error) {
-          console.error("Error initializing user data:", error);
-          // Optional: You could set a 'globalError' state here to show a friendly UI
+        console.error("Error initializing user data:", error);
+        // Optional: You could set a 'globalError' state here to show a friendly UI
       } finally {
-          // CRITICAL: This ensures the loading spinner ALWAYS stops, success or fail.
-          setLoading(false);
+        // CRITICAL: This ensures the loading spinner ALWAYS stops, success or fail.
+        setLoading(false);
       }
     });
 
     return () => {
-        unsubscribe();
+      unsubscribe();
     };
   }, [loginToCompany]);
 
@@ -185,7 +185,7 @@ export function DataProvider({ children }) {
       setUserRole('driver');
       window.location.href = '/driver/dashboard';
     } else {
-      setUserRole('admin');
+      setUserRole('company_admin');
       const savedCompanyId = localStorage.getItem('selectedCompanyId');
       if (savedCompanyId) {
         await loginToCompany(savedCompanyId, null, true);
@@ -205,12 +205,12 @@ export function DataProvider({ children }) {
 
   const handleLogout = async () => {
     try {
-        await auth.signOut();
-        localStorage.removeItem('selectedCompanyId');
-        localStorage.removeItem('selectedPortal');
-        window.location.href = '/login';
+      await auth.signOut();
+      localStorage.removeItem('selectedCompanyId');
+      localStorage.removeItem('selectedPortal');
+      window.location.href = '/login';
     } catch (e) {
-        console.error("Logout failed", e);
+      console.error("Logout failed", e);
     }
   };
 
@@ -222,12 +222,12 @@ export function DataProvider({ children }) {
 
   if (loading) {
     return (
-        <div className="h-screen flex items-center justify-center bg-gray-50">
-            <div className="text-center">
-                <Loader2 className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
-                <p className="text-gray-500 font-medium">Loading Platform...</p>
-            </div>
+      <div className="h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <Loader2 className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
+          <p className="text-gray-500 font-medium">Loading Platform...</p>
         </div>
+      </div>
     );
   }
 
@@ -258,8 +258,8 @@ export function DataProvider({ children }) {
         <RoleSelectionModal onSelect={handlePortalSelection} />
       )}
 
-      {currentUser && showCompanyChooser && !loading && userRole === 'admin' && !showRoleSelection && (
-         <CompanyChooserModal />
+      {currentUser && showCompanyChooser && !loading && userRole === 'company_admin' && !showRoleSelection && (
+        <CompanyChooserModal />
       )}
     </DataContext.Provider>
   );

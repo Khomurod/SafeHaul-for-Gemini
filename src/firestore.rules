@@ -166,6 +166,7 @@ service cloud.firestore {
         }
         match /internal_notes/{noteId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
         match /activity_logs/{activityId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
+        match /activities/{activityId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
       }
 
       // LEADS (Company Specific)
