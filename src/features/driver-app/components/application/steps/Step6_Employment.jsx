@@ -1,4 +1,7 @@
 import React from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Step6Schema } from './Step6_Schema';
 import InputField from '@shared/components/form/InputField';
 import RadioGroup from '@shared/components/form/RadioGroup';
 import DynamicRow from '@shared/components/form/DynamicRow';
@@ -6,11 +9,19 @@ import { useUtils } from '@shared/hooks/useUtils';
 import { useData } from '@/context/DataContext';
 import { YES_NO_OPTIONS, MILITARY_BRANCH_OPTIONS } from '@/config/form-options';
 
-const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
+const Step6_Employment = ({ control, onNavigate }) => {
     const { states } = useUtils();
     const { currentCompanyProfile } = useData();
     const currentCompany = currentCompanyProfile;
     const yesNoOptions = YES_NO_OPTIONS;
+
+    const { handleSubmit } = useForm({
+        resolver: zodResolver(Step6Schema),
+    });
+
+    const onSubmit = (data) => {
+        onNavigate('next');
+    };
 
     // --- Configuration ---
     const getConfig = (fieldId, defaultReq = true) => {
@@ -27,17 +38,6 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
     const initialSchool = { name: '', startDate: '', endDate: '', location: '' };
     const initialUnemployment = { startDate: '', endDate: '', details: '' };
     const initialMilitary = { branch: '', start: '', end: '', rank: '', heavyEq: 'no', honorable: 'yes', explanation: '' };
-
-    const handleContinue = () => {
-        const form = document.getElementById('driver-form');
-        if (form) {
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-        }
-        onNavigate('next');
-    };
 
     const renderEmployerRow = (index, item, handleChange) => (
         <div key={index} className="space-y-3">
@@ -121,7 +121,7 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
     );
 
     return (
-        <div id="page-6" className="form-step space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-step space-y-6">
             <h3 className="text-xl font-semibold text-gray-800">Step 6 of 9: Employment History</h3>
             <p className="text-sm text-gray-600">To comply with DOT regulations (49 CFR 391.21), please provide a complete **10-year employment history**. This includes all employers (commercial driving and non-driving), periods of unemployment, military service, and driving schools. Failure to provide a complete 10-year history may delay your application.</p>
 
@@ -129,13 +129,19 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
             {!empHistoryConfig.hidden && (
                 <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
                     <legend className="text-lg font-semibold text-gray-800 px-2">Previous Employers</legend>
-                    <DynamicRow
-                        listKey="employers"
-                        formData={formData}
-                        updateFormData={updateFormData}
-                        renderRow={renderEmployerRow}
-                        initialItemState={initialEmployer}
-                        addButtonLabel="+ Add Employer"
+                    <Controller
+                        name="employers"
+                        control={control}
+                        render={({ field }) => (
+                            <DynamicRow
+                                listKey="employers"
+                                formData={{ employers: field.value }}
+                                updateFormData={(key, value) => field.onChange(value)}
+                                renderRow={renderEmployerRow}
+                                initialItemState={initialEmployer}
+                                addButtonLabel="+ Add Employer"
+                            />
+                        )}
                     />
                 </fieldset>
             )}
@@ -143,37 +149,55 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
                 <legend className="text-lg font-semibold text-gray-800 px-2">Employment Gaps</legend>
                 <p className="text-sm text-gray-600">Please explain any gaps in employment of 30 days or more.</p>
-                <DynamicRow
-                    listKey="unemployment"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderUnemploymentRow}
-                    initialItemState={initialUnemployment}
-                    addButtonLabel="+ Add Employment Gap"
+                <Controller
+                    name="unemployment"
+                    control={control}
+                    render={({ field }) => (
+                        <DynamicRow
+                            listKey="unemployment"
+                            formData={{ unemployment: field.value }}
+                            updateFormData={(key, value) => field.onChange(value)}
+                            renderRow={renderUnemploymentRow}
+                            initialItemState={initialUnemployment}
+                            addButtonLabel="+ Add Employment Gap"
+                        />
+                    )}
                 />
             </fieldset>
 
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
                 <legend className="text-lg font-semibold text-gray-800 px-2">Driving Schools</legend>
-                <DynamicRow
-                    listKey="schools"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderSchoolRow}
-                    initialItemState={initialSchool}
-                    addButtonLabel="+ Add Driving School"
+                <Controller
+                    name="schools"
+                    control={control}
+                    render={({ field }) => (
+                        <DynamicRow
+                            listKey="schools"
+                            formData={{ schools: field.value }}
+                            updateFormData={(key, value) => field.onChange(value)}
+                            renderRow={renderSchoolRow}
+                            initialItemState={initialSchool}
+                            addButtonLabel="+ Add Driving School"
+                        />
+                    )}
                 />
             </fieldset>
 
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
                 <legend className="text-lg font-semibold text-gray-800 px-2">Military Service</legend>
-                <DynamicRow
-                    listKey="military"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderMilitaryRow}
-                    initialItemState={initialMilitary}
-                    addButtonLabel="+ Add Military Service"
+                <Controller
+                    name="military"
+                    control={control}
+                    render={({ field }) => (
+                        <DynamicRow
+                            listKey="military"
+                            formData={{ military: field.value }}
+                            updateFormData={(key, value) => field.onChange(value)}
+                            renderRow={renderMilitaryRow}
+                            initialItemState={initialMilitary}
+                            addButtonLabel="+ Add Military Service"
+                        />
+                    )}
                 />
             </fieldset>
 
@@ -186,14 +210,13 @@ const Step6_Employment = ({ formData, updateFormData, onNavigate }) => {
                     Back
                 </button>
                 <button
-                    type="button"
-                    onClick={handleContinue}
+                    type="submit"
                     className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                 >
                     Continue
                 </button>
             </div>
-        </div>
+        </form>
     );
 };
 

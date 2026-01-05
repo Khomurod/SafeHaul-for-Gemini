@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { formatErrorMessage } from '@shared/utils/errors';
 
 const ToastContext = createContext();
 
@@ -30,7 +31,7 @@ export function ToastProvider({ children }) {
   }, []);
 
   const showSuccess = (msg) => addToast('success', msg);
-  const showError = (msg) => addToast('error', msg);
+  const showError = (error) => addToast('error', formatErrorMessage(error));
   const showInfo = (msg) => addToast('info', msg);
   const showWarning = (msg) => addToast('warning', msg);
 

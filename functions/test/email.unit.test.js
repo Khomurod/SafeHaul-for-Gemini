@@ -1,10 +1,9 @@
-const { describe, it, expect } = require('@jest/globals');
+import { describe, it, expect } from 'vitest';
+import nodemailer from 'nodemailer';
 
 describe('Email Service Unit Tests', () => {
     it('should create a Nodemailer transporter with valid SMTP credentials', () => {
         // This test verifies the basic email service functionality
-        const nodemailer = require('nodemailer');
-
         const validConfig = {
             host: 'smtp.gmail.com',
             port: 587,

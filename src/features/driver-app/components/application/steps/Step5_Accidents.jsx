@@ -1,13 +1,24 @@
 import React from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Step5Schema } from './Step5_Schema';
 import InputField from '@shared/components/form/InputField';
 import RadioGroup from '@shared/components/form/RadioGroup';
 import DynamicRow from '@shared/components/form/DynamicRow';
 import { useUtils } from '@shared/hooks/useUtils';
 
-const Step5_Accidents = ({ formData, updateFormData, onNavigate }) => {
+const Step5_Accidents = ({ control, onNavigate }) => {
     const { states } = useUtils();
     const yesNoOptions = [{ label: 'Yes', value: 'yes' }, { label: 'No', value: 'no' }];
     const initialAccident = { date: '', city: '', state: '', commercial: 'no', details: '', preventable: 'no' };
+
+    const { handleSubmit } = useForm({
+        resolver: zodResolver(Step5Schema),
+    });
+
+    const onSubmit = (data) => {
+        onNavigate('next');
+    };
 
     const renderAccidentRow = (index, item, handleChange) => (
         <div key={index} className="space-y-3">
@@ -78,19 +89,25 @@ const Step5_Accidents = ({ formData, updateFormData, onNavigate }) => {
     );
 
     return (
-        <div id="page-5" className="form-step space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-step space-y-6">
             <h3 className="text-xl font-semibold text-gray-800">Step 5 of 9: Accident History</h3>
 
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4">
                 <legend className="text-lg font-semibold text-gray-800 px-2">Accident History (Past 3 Years)</legend>
                 <p className="text-sm text-gray-600">Please list all motor vehicle accidents in which you were involved in the past 3 years.</p>
-                <DynamicRow
-                    listKey="accidents"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderAccidentRow}
-                    initialItemState={initialAccident}
-                    addButtonLabel="+ Add Accident"
+                <Controller
+                    name="accidents"
+                    control={control}
+                    render={({ field }) => (
+                        <DynamicRow
+                            listKey="accidents"
+                            formData={{ accidents: field.value }}
+                            updateFormData={(key, value) => field.onChange(value)}
+                            renderRow={renderAccidentRow}
+                            initialItemState={initialAccident}
+                            addButtonLabel="+ Add Accident"
+                        />
+                    )}
                 />
             </fieldset>
 
@@ -103,14 +120,13 @@ const Step5_Accidents = ({ formData, updateFormData, onNavigate }) => {
                     Back
                 </button>
                 <button 
-                    type="button" 
-                    onClick={() => onNavigate('next')}
+                    type="submit"
                     className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                 >
                     Continue
                 </button>
             </div>
-        </div>
+        </form>
     );
 };
 

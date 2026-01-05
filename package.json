@@ -11,6 +11,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "canvas-confetti": "^1.9.4",
     "exceljs": "^4.4.0",
     "firebase": "^11.0.2",
@@ -20,11 +21,13 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-draggable": "^4.5.0",
+    "react-hook-form": "^7.70.0",
     "react-pdf": "^10.2.0",
     "react-router-dom": "^7.9.6",
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.6.0",
-    "uuid": "^11.0.3"
+    "uuid": "^11.0.3",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

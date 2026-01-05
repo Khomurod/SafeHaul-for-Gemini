@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { render, screen, waitFor } from './test-utils'; // Custom render
 import { CompanyAdminDashboard } from '@features/company-admin/components/CompanyAdminDashboard';
-import { DataProvider } from '@/context/DataContext';
 
 // Mock Firebase with complete auth state management
 vi.mock('firebase/auth', () => ({
@@ -26,19 +24,34 @@ vi.mock('@lib/firebase', () => ({
             return () => { };
         }),
     },
-    db: {},
+    db: {
+        collection: vi.fn(() => ({
+            where: vi.fn(() => ({
+                onSnapshot: vi.fn(() => () => { }),
+            })),
+            onSnapshot: vi.fn(() => () => { }),
+        })),
+        doc: vi.fn(() => ({
+            collection: vi.fn(() => ({
+                where: vi.fn(() => ({
+                    onSnapshot: vi.fn(() => () => { }),
+                })),
+                onSnapshot: vi.fn(() => () => { }),
+            })),
+        })),
+    },
     storage: {},
-    functions: {},
+    functions: {
+        httpsCallable: vi.fn(() =>
+            vi.fn(async () => ({
+                data: {
+                    leads: [],
+                    total: 0,
+                },
+            }))
+        ),
+    },
 }));
-
-// Mock DataContext with test utilities
-const MockDataProvider = ({ children, value }) => {
-    return (
-        <DataProvider>
-            {children}
-        </DataProvider>
-    );
-};
 
 describe('CompanyAdminDashboard Smoke Tests', () => {
     it('should render without crashing when provided with mock company profile', () => {
@@ -56,66 +69,68 @@ describe('CompanyAdminDashboard Smoke Tests', () => {
 
         // This test verifies the component can mount without errors
         expect(() => {
-            render(
-                <BrowserRouter>
-                    <MockDataProvider value={{ currentCompanyProfile: mockCompanyProfile }}>
-                        <CompanyAdminDashboard />
-                    </MockDataProvider>
-                </BrowserRouter>
-            );
+            render(<CompanyAdminDashboard />, {
+                wrapperProps: {
+                    value: {
+                        currentCompanyProfile: mockCompanyProfile,
+                    },
+                },
+            });
         }).not.toThrow();
     });
 
-    it('should display company name when profile is provided', () => {
+    it('should display company name when profile is provided', async () => {
         const mockCompanyProfile = {
             id: 'test-company-123',
             companyName: 'Acme Trucking LLC',
         };
 
-        render(
-            <BrowserRouter>
-                <MockDataProvider value={{ currentCompanyProfile: mockCompanyProfile }}>
-                    <CompanyAdminDashboard />
-                </MockDataProvider>
-            </BrowserRouter>
-        );
+        render(<CompanyAdminDashboard />, {
+            wrapperProps: {
+                value: {
+                    currentCompanyProfile: mockCompanyProfile,
+                },
+            },
+        });
 
-        // Dashboard should render some content (exact structure may vary)
-        const dashboard = screen.getByRole('main') || document.querySelector('[class*="dashboard"]');
-        expect(dashboard).toBeTruthy();
+        await waitFor(() => {
+            expect(screen.getByText('Acme Trucking LLC')).toBeInTheDocument();
+        });
     });
 
     it('should handle missing company profile gracefully', () => {
         // Test with no company profile
         expect(() => {
-            render(
-                <BrowserRouter>
-                    <MockDataProvider value={{ currentCompanyProfile: null }}>
-                        <CompanyAdminDashboard />
-                    </MockDataProvider>
-                </BrowserRouter>
-            );
+            render(<CompanyAdminDashboard />, {
+                wrapperProps: {
+                    value: {
+                        currentCompanyProfile: null,
+                    },
+                },
+            });
         }).not.toThrow();
     });
 
-    it('should render key dashboard sections', () => {
+    it('should render key dashboard sections', async () => {
         const mockCompanyProfile = {
             id: 'test-company-123',
             companyName: 'Test Logistics',
         };
 
-        render(
-            <BrowserRouter>
-                <MockDataProvider value={{ currentCompanyProfile: mockCompanyProfile }}>
-                    <CompanyAdminDashboard />
-                </MockDataProvider>
-            </BrowserRouter>
-        );
+        render(<CompanyAdminDashboard />, {
+            wrapperProps: {
+                value: {
+                    currentCompanyProfile: mockCompanyProfile,
+                },
+            },
+        });
 
-        // Verify the component structure is rendered
-        // (Specific assertions depend on actual dashboard layout)
-        const container = document.body;
-        expect(container).toBeTruthy();
-        expect(container.textContent).toBeTruthy();
+        await waitFor(() => {
+            // Verify the component structure is rendered
+            // (Specific assertions depend on actual dashboard layout)
+            const container = document.body;
+            expect(container).toBeTruthy();
+            expect(container.textContent).toBeTruthy();
+        });
     });
 });

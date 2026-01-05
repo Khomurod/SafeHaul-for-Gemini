@@ -18,6 +18,10 @@ export const DashboardTable = memo(function DashboardTable({
     setSearchQuery,
     filters,
     setFilters,
+    sortBy,
+    setSortBy,
+    sortOrder,
+    setSortOrder,
 
     currentPage,
     itemsPerPage,
@@ -43,48 +47,13 @@ export const DashboardTable = memo(function DashboardTable({
         }
     });
 
-    // Sorting State
-    const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-
-    // Client-Side Sorting Logic
-    const sortedData = useMemo(() => {
-        let sortableItems = [...data];
-        if (sortConfig.key !== null) {
-            sortableItems.sort((a, b) => {
-                let aValue = a[sortConfig.key];
-                let bValue = b[sortConfig.key];
-
-                // Handle nested or special fields if needed (e.g. date)
-                if (sortConfig.key === 'date') {
-                    // Date handling logic (timestamps)
-                    aValue = a.isPlatformLead ? a.distributedAt?.seconds : (a.submittedAt?.seconds || a.createdAt?.seconds);
-                    bValue = b.isPlatformLead ? b.distributedAt?.seconds : (b.submittedAt?.seconds || b.createdAt?.seconds);
-                }
-
-                // Handle Name concatenation
-                if (sortConfig.key === 'name') {
-                    aValue = `${a.firstName} ${a.lastName}`.toLowerCase();
-                    bValue = `${b.firstName} ${b.lastName}`.toLowerCase();
-                }
-
-                if (aValue < bValue) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aValue > bValue) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        }
-        return sortableItems;
-    }, [data, sortConfig]);
-
     const requestSort = (key) => {
-        let direction = 'asc';
-        if (sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
+        if (sortBy === key) {
+            setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(key);
+            setSortOrder('asc');
         }
-        setSortConfig({ key, direction });
     };
 
     // Selection State
@@ -187,8 +156,8 @@ export const DashboardTable = memo(function DashboardTable({
                                         <div className={`flex items-center gap-1.5 group w-full ${justifyClass}`}>
                                             <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">{col.label}</span>
                                             <span className="text-gray-300 group-hover:text-blue-500 shrink-0 transition-all duration-300 transform group-hover:scale-110">
-                                                {sortConfig.key === col.key ? (
-                                                    sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />
+                                                {sortBy === col.key ? (
+                                                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-blue-600" /> : <ArrowDown size={14} className="text-blue-600" />
                                                 ) : (
                                                     <ChevronsUpDown size={14} className="opacity-0 group-hover:opacity-100" />
                                                 )}
@@ -201,7 +170,7 @@ export const DashboardTable = memo(function DashboardTable({
                     </thead>
 
                     <DashboardBody
-                        data={sortedData}
+                        data={data}
                         loading={loading}
                         totalCount={totalCount}
                         selectedId={selectedId}

@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react';
 import { CompanyChooserModal } from '@shared/components/modals';
 import { RoleSelectionModal } from '@shared/components/modals/RoleSelectionModal';
 
-const DataContext = createContext();
+export const DataContext = createContext();
 
 export const useData = () => {
   const context = useContext(DataContext);

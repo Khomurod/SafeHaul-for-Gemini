@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { render, screen, waitFor, fireEvent } from './test-utils'; // Custom render
 import { LoginScreen } from '@features/auth';
 
 // Mock Firebase auth module
@@ -23,21 +22,31 @@ vi.mock('@lib/firebase', () => ({
     functions: {},
 }));
 
+vi.mock('@/context/DataContext', async () => {
+    const actual = await vi.importActual('@/context/DataContext');
+    return {
+        ...actual,
+        useData: () => ({
+            loading: false,
+        }),
+    };
+});
+
+
 describe('Authentication Flow', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        window.alert = vi.fn();
     });
 
-    it('should render login form with email and password fields', () => {
-        render(
-            <BrowserRouter>
-                <LoginScreen />
-            </BrowserRouter>
-        );
+    it('should render login form with email and password fields', async () => {
+        render(<LoginScreen />);
 
-        expect(screen.getByPlaceholderText(/email/i)).toBeInTheDocument();
-        expect(screen.getByPlaceholderText(/password/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /sign in|login/i })).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByPlaceholderText(/email/i)).toBeInTheDocument();
+            expect(screen.getByPlaceholderText(/password/i)).toBeInTheDocument();
+            expect(screen.getByRole('button', { name: /sign in|login/i })).toBeInTheDocument();
+        });
     });
 
     it('should handle successful login', async () => {
@@ -51,19 +60,13 @@ describe('Authentication Flow', () => {
             },
         });
 
-        render(
-            <BrowserRouter>
-                <LoginScreen />
-            </BrowserRouter>
-        );
+        render(<LoginScreen />);
 
-        const emailInput = screen.getByPlaceholderText(/email/i);
-        const passwordInput = screen.getByPlaceholderText(/password/i);
-        const submitButton = screen.getByRole('button', { name: /sign in|login/i });
-
-        fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-        fireEvent.change(passwordInput, { target: { value: 'password123' } });
-        fireEvent.click(submitButton);
+        await waitFor(() => {
+            fireEvent.change(screen.getByPlaceholderText(/email/i), { target: { value: 'test@example.com' } });
+            fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'password123' } });
+            fireEvent.click(screen.getByRole('button', { name: /sign in|login/i }));
+        });
 
         await waitFor(() => {
             expect(signInWithEmailAndPassword).toHaveBeenCalledWith(
@@ -83,28 +86,17 @@ describe('Authentication Flow', () => {
             message: 'The password is invalid',
         });
 
-        // Mock window.alert
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => { });
-
-        render(
-            <BrowserRouter>
-                <LoginScreen />
-            </BrowserRouter>
-        );
-
-        const emailInput = screen.getByPlaceholderText(/email/i);
-        const passwordInput = screen.getByPlaceholderText(/password/i);
-        const submitButton = screen.getByRole('button', { name: /sign in|login/i });
-
-        fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-        fireEvent.change(passwordInput, { target: { value: 'wrongpassword' } });
-        fireEvent.click(submitButton);
+        render(<LoginScreen />);
 
         await waitFor(() => {
-            expect(alertMock).toHaveBeenCalled();
+            fireEvent.change(screen.getByPlaceholderText(/email/i), { target: { value: 'test@example.com' } });
+            fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'wrongpassword' } });
+            fireEvent.click(screen.getByRole('button', { name: /sign in|login/i }));
         });
 
-        alertMock.mockRestore();
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalled();
+        });
     });
 
     it('should display error message on network error', async () => {
@@ -116,27 +108,17 @@ describe('Authentication Flow', () => {
             message: 'Network error',
         });
 
-        const alertMock = vi.spyOn(window, 'alert').mockImplementation(() => { });
-
-        render(
-            <BrowserRouter>
-                <LoginScreen />
-            </BrowserRouter>
-        );
-
-        const emailInput = screen.getByPlaceholderText(/email/i);
-        const passwordInput = screen.getByPlaceholderText(/password/i);
-        const submitButton = screen.getByRole('button', { name: /sign in|login/i });
-
-        fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-        fireEvent.change(passwordInput, { target: { value: 'password123' } });
-        fireEvent.click(submitButton);
+        render(<LoginScreen />);
 
         await waitFor(() => {
-            expect(alertMock).toHaveBeenCalled();
+            fireEvent.change(screen.getByPlaceholderText(/email/i), { target: { value: 'test@example.com' } });
+            fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'password123' } });
+            fireEvent.click(screen.getByRole('button', { name: /sign in|login/i }));
         });
 
-        alertMock.mockRestore();
+        await waitFor(() => {
+            expect(window.alert).toHaveBeenCalled();
+        });
     });
 
     it('should show loading state during authentication', async () => {
@@ -147,21 +129,15 @@ describe('Authentication Flow', () => {
             () => new Promise((resolve) => setTimeout(resolve, 100))
         );
 
-        render(
-            <BrowserRouter>
-                <LoginScreen />
-            </BrowserRouter>
-        );
+        render(<LoginScreen />);
 
-        const emailInput = screen.getByPlaceholderText(/email/i);
-        const passwordInput = screen.getByPlaceholderText(/password/i);
-        const submitButton = screen.getByRole('button', { name: /sign in|login/i });
-
-        fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-        fireEvent.change(passwordInput, { target: { value: 'password123' } });
-        fireEvent.click(submitButton);
+        await waitFor(() => {
+            fireEvent.change(screen.getByPlaceholderText(/email/i), { target: { value: 'test@example.com' } });
+            fireEvent.change(screen.getByPlaceholderText(/password/i), { target: { value: 'password123' } });
+            fireEvent.click(screen.getByRole('button', { name: /sign in|login/i }));
+        });
 
         // Button should be disabled during loading
-        expect(submitButton).toBeDisabled();
+        expect(screen.getByRole('button', { name: /sign in|login/i })).toBeDisabled();
     });
 });
