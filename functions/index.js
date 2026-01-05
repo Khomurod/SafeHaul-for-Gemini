@@ -60,6 +60,10 @@ exports.syncSystemStructure = systemIntegrity.syncSystemStructure;
 exports.runSecurityAudit = systemIntegrity.runSecurityAudit; // <--- FIX: Export Security Audit
 exports.getSignedUploadUrl = require('./storageSecure').getSignedUploadUrl; // <--- NEW EXPORT 
 
+// NEW: Email Testing
+exports.testEmailConnection = require('./testEmailConnection').testEmailConnection;
+
+
 // 7. Data Migration
 exports.runMigration = companyAdmin.runMigration;
 
