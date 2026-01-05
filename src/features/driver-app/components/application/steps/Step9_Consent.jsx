@@ -1,25 +1,31 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Step9Schema } from './Step9_Schema';
 import AgreementBox from '@shared/components/form/AgreementBox';
 import { useData } from '@/context/DataContext';
 import { FileSignature, PenTool, CheckCircle, Save, Eraser, RotateCcw } from 'lucide-react';
 import { getSignatureDataUrl, clearCanvas, initializeSignatureCanvas } from '@/lib/signature';
 
-const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit }) => {
+const Step9_Consent = ({ control, onNavigate, onFinalSubmit }) => {
     const { currentCompanyProfile } = useData();
     const currentCompany = currentCompanyProfile;
     const canvasRef = useRef(null);
 
-    const [isSigned, setIsSigned] = useState(!!formData.signature);
-    const isFinalCertified = formData['final-certification'] === 'agreed';
+    const { handleSubmit, watch, setValue } = useForm({
+        resolver: zodResolver(Step9Schema),
+    });
+
+    const onSubmit = (data) => {
+        onFinalSubmit(data);
+    };
+
+    const [isSigned, setIsSigned] = useState(!!watch('signature'));
 
     // Initialize canvas on mount
     useEffect(() => {
         initializeSignatureCanvas();
     }, []);
-
-    const handleFinalCertificationChange = (e) => {
-        updateFormData('final-certification', e.target.checked ? 'agreed' : '');
-    };
 
     const handleSaveSignature = () => {
         const dataUrl = getSignatureDataUrl();
@@ -30,8 +36,8 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit }) 
             return;
         }
 
-        updateFormData('signature', dataUrl);
-        updateFormData('signatureType', 'drawn');
+        setValue('signature', dataUrl);
+        setValue('signatureType', 'drawn');
         setIsSigned(true);
     };
 
@@ -45,12 +51,12 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit }) 
 
         // Also call utility for state consistency
         clearCanvas();
-        updateFormData('signature', '');
+        setValue('signature', '');
         setIsSigned(false);
     };
 
     return (
-        <div id="page-9" className="form-step space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-step space-y-6">
             <style>
                 {`@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap');`}
             </style>
@@ -59,44 +65,53 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit }) 
 
             {/* Agreements Section (Kept for context) */}
             <div className="space-y-4">
-                <AgreementBox
-                    contentId="Agreement to Conduct Transaction Electronically"
-                    companyData={currentCompany}
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    checkboxName="agree-electronic"
-                    checkboxLabel="I Agree"
-                    checkboxDescription="I have read, understood, and agree to the terms of transacting electronically."
-                    required={true}
-                >
-                    <p>This electronic transaction service is provided on behalf of <strong className="company-name-placeholder">{currentCompany?.companyName || 'The Company'}</strong>. You are agreeing to receive notices electronically and provide electronic signatures.</p>
-                </AgreementBox>
+                <Controller
+                    name="agree-electronic"
+                    control={control}
+                    render={({ field }) => (
+                        <AgreementBox
+                            contentId="Agreement to Conduct Transaction Electronically"
+                            companyData={currentCompany}
+                            checkboxName="agree-electronic"
+                            checkboxLabel="I Agree"
+                            checkboxDescription="I have read, understood, and agree to the terms of transacting electronically."
+                            required={true}
+                            {...field}
+                        />
+                    )}
+                />
 
-                <AgreementBox
-                    contentId="Background Check Disclosure"
-                    companyData={currentCompany}
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    checkboxName="agree-background-check"
-                    checkboxLabel="I Acknowledge and Authorize"
-                    checkboxDescription="I have read, understood, and agree to the Background Check Disclosure."
-                    required={true}
-                >
-                    <p>In connection with your application for employment, a consumer report may be requested about you.</p>
-                </AgreementBox>
+                <Controller
+                    name="agree-background-check"
+                    control={control}
+                    render={({ field }) => (
+                        <AgreementBox
+                            contentId="Background Check Disclosure"
+                            companyData={currentCompany}
+                            checkboxName="agree-background-check"
+                            checkboxLabel="I Acknowledge and Authorize"
+                            checkboxDescription="I have read, understood, and agree to the Background Check Disclosure."
+                            required={true}
+                            {...field}
+                        />
+                    )}
+                />
 
-                <AgreementBox
-                    contentId="FMCSA PSP Authorization"
-                    companyData={currentCompany}
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    checkboxName="agree-psp"
-                    checkboxLabel="I Authorize PSP Check"
-                    checkboxDescription="I have read, understood, and agree to the PSP Disclosure and Authorization."
-                    required={true}
-                >
-                    <p>I authorize access to the FMCSA Pre-Employment Screening Program (PSP) system.</p>
-                </AgreementBox>
+                <Controller
+                    name="agree-psp"
+                    control={control}
+                    render={({ field }) => (
+                        <AgreementBox
+                            contentId="FMCSA PSP Authorization"
+                            companyData={currentCompany}
+                            checkboxName="agree-psp"
+                            checkboxLabel="I Authorize PSP Check"
+                            checkboxDescription="I have read, understood, and agree to the PSP Disclosure and Authorization."
+                            required={true}
+                            {...field}
+                        />
+                    )}
+                />
             </div>
 
             {/* 5. Final Certification & E-Signature */}
@@ -158,12 +173,17 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit }) 
 
                     <div className="flex items-start p-4 bg-blue-50/30 border border-blue-100 rounded-xl mt-6">
                         <div className="flex-shrink-0">
-                            <input
-                                id="final-certification"
-                                type="checkbox"
-                                checked={isFinalCertified}
-                                onChange={handleFinalCertificationChange}
-                                className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1 cursor-pointer"
+                            <Controller
+                                name="final-certification"
+                                control={control}
+                                render={({ field }) => (
+                                    <input
+                                        id="final-certification"
+                                        type="checkbox"
+                                        className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-1 cursor-pointer"
+                                        {...field}
+                                    />
+                                )}
                             />
                         </div>
                         <div className="ml-3 text-sm">
@@ -188,14 +208,13 @@ const Step9_Consent = ({ formData, updateFormData, onNavigate, onFinalSubmit }) 
                 </button>
                 <button
                     type="submit"
-                    onClick={onFinalSubmit}
-                    disabled={!isFinalCertified || !isSigned}
+                    disabled={!watch('final-certification') || !isSigned}
                     className="px-10 py-3.5 bg-green-600 text-white font-bold rounded-xl shadow-lg shadow-green-100 hover:bg-green-700 disabled:opacity-40 disabled:grayscale disabled:cursor-not-allowed flex items-center gap-2 transition-all active:scale-95"
                 >
                     <CheckCircle size={20} /> Submit Full Application
                 </button>
             </div>
-        </div>
+        </form>
     );
 };
 

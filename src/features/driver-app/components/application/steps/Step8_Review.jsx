@@ -1,4 +1,7 @@
 import React from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Step8Schema } from './Step8_Schema';
 import { 
   User, MapPin, Truck, Briefcase, FileCheck, 
   AlertCircle, IdCard, ShieldCheck, Beaker, Edit2,
@@ -53,7 +56,12 @@ const ReviewList = ({ items, renderItem, emptyText = "None recorded" }) => {
     );
 };
 
-const Step8_Review = ({ formData, onNavigate }) => {
+const Step8_Review = ({ control, onNavigate }) => {
+    const { watch } = useForm({
+        resolver: zodResolver(Step8Schema),
+    });
+
+    const formData = watch();
 
     // Corrected Mapping for Navigation (0-based index)
     // 0: Contact (Personal + Address)

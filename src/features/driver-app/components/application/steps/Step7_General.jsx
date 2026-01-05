@@ -1,4 +1,7 @@
 import React from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Step7Schema } from './Step7_Schema';
 import InputField from '@shared/components/form/InputField';
 import RadioGroup from '@shared/components/form/RadioGroup';
 import { useUtils } from '@shared/hooks/useUtils';
@@ -11,49 +14,23 @@ import BusinessInfoSection from './components/BusinessInfoSection';
 import VehicleExperienceSection from './components/VehicleExperienceSection';
 import EmergencyContactsSection from './components/EmergencyContactsSection';
 
-const Step7_General = ({ formData, updateFormData, onNavigate, handleFileUpload }) => {
+const Step7_General = ({ control, onNavigate, handleFileUpload }) => {
     const { states } = useUtils();
     const { currentCompanyProfile } = useData();
     const currentCompany = currentCompanyProfile;
 
-    const yesNoOptions = YES_NO_OPTIONS;
-    const milesOptions = MILES_DRIVEN_OPTIONS;
-    const expOptions = EXPERIENCE_OPTIONS;
-    const hasFelony = formData['has-felony'] === 'yes';
+    const { handleSubmit, watch, register } = useForm({
+        resolver: zodResolver(Step7Schema),
+    });
 
-    const handleContinue = () => {
-        const form = document.getElementById('driver-form');
-        if (form) {
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-        }
+    const onSubmit = (data) => {
         onNavigate('next');
     };
 
-    const handleCustomAnswerChange = (questionIdOrLabel, answer) => {
-        const currentAnswers = formData.customAnswers || {};
-        const updatedAnswers = { ...currentAnswers, [questionIdOrLabel]: answer };
-        updateFormData('customAnswers', updatedAnswers);
-    };
-
-    const handleCheckboxChange = (questionId, option) => {
-        const currentAnswers = formData.customAnswers || {};
-        const currentSelection = Array.isArray(currentAnswers[questionId]) ? currentAnswers[questionId] : [];
-
-        let newSelection;
-        if (currentSelection.includes(option)) {
-            newSelection = currentSelection.filter(item => item !== option);
-        } else {
-            newSelection = [...currentSelection, option];
-        }
-
-        handleCustomAnswerChange(questionId, newSelection);
-    };
+    const hasFelony = watch('has-felony') === 'yes';
 
     return (
-        <div id="page-7" className="form-step space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-step space-y-6">
             <h3 className="text-xl font-semibold text-gray-800">Step 7 of 9: Custom Applicant Questions</h3>
 
             {currentCompany?.customQuestions?.length > 0 && (
@@ -71,34 +48,29 @@ const Step7_General = ({ formData, updateFormData, onNavigate, handleFileUpload 
                             key={question.id || index}
                             question={question}
                             index={index}
-                            formData={formData}
-                            onAnswerChange={handleCustomAnswerChange}
-                            onCheckboxChange={handleCheckboxChange}
+                            control={control}
                             handleFileUpload={handleFileUpload}
                         />
                     ))}
                 </fieldset>
             )}
 
-            {(formData.positionType === 'ownerOperator' || formData.positionType === 'leaseOperator') && (
+            {(watch('positionType') === 'ownerOperator' || watch('positionType') === 'leaseOperator') && (
                 <BusinessInfoSection
-                    formData={formData}
-                    updateFormData={updateFormData}
+                    control={control}
                     states={states}
                 />
             )}
 
             <VehicleExperienceSection
-                formData={formData}
-                updateFormData={updateFormData}
-                milesOptions={milesOptions}
-                expOptions={expOptions}
+                control={control}
+                milesOptions={MILES_DRIVEN_OPTIONS}
+                expOptions={EXPERIENCE_OPTIONS}
             />
 
             {currentCompany?.applicationConfig?.showEmergencyContacts && (
                 <EmergencyContactsSection
-                    formData={formData}
-                    updateFormData={updateFormData}
+                    control={control}
                 />
             )}
 
@@ -112,40 +84,40 @@ const Step7_General = ({ formData, updateFormData, onNavigate, handleFileUpload 
                             <input
                                 type="number"
                                 id={'hos-day' + day}
-                                name={'hosDay' + day}
-                                value={formData['hosDay' + day] || ''}
-                                onChange={(e) => updateFormData(e.target.name, e.target.value)}
                                 className="w-full p-2 border border-gray-300 rounded-lg shadow-sm"
+                                {...register(`hosDay${day}`)}
                             />
                         </div>
                     ))}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
-                    <InputField label="Last relieved from work (DATE)" id="last-relieved-date" name="lastRelievedDate" type="date" value={formData.lastRelievedDate} onChange={updateFormData} />
-                    <InputField label="Last relieved from work (TIME)" id="last-relieved-time" name="lastRelievedTime" type="time" value={formData.lastRelievedTime} onChange={updateFormData} />
+                    <InputField label="Last relieved from work (DATE)" id="last-relieved-date" type="date" {...register('lastRelievedDate')} />
+                    <InputField label="Last relieved from work (TIME)" id="last-relieved-time" type="time" {...register('lastRelievedTime')} />
                 </div>
             </fieldset>
 
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
                 <legend className="text-lg font-semibold text-gray-800 px-2">Felony History</legend>
-                <RadioGroup
-                    label="Have you ever been convicted of a felony?"
+                <Controller
                     name="has-felony"
-                    options={yesNoOptions}
-                    value={formData['has-felony']}
-                    onChange={updateFormData}
-                    required={true}
+                    control={control}
+                    render={({ field }) => (
+                        <RadioGroup
+                            label="Have you ever been convicted of a felony?"
+                            options={YES_NO_OPTIONS}
+                            required={true}
+                            {...field}
+                        />
+                    )}
                 />
                 {hasFelony && (
                     <div id="felony-details" className="space-y-2 pt-4 border-t border-gray-200">
                         <label htmlFor="felony-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please explain:</label>
                         <textarea
                             id="felony-explanation"
-                            name="felonyExplanation"
                             rows="3"
-                            value={formData.felonyExplanation || ""}
-                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            {...register('felonyExplanation')}
                         ></textarea>
                     </div>
                 )}
@@ -160,14 +132,13 @@ const Step7_General = ({ formData, updateFormData, onNavigate, handleFileUpload 
                     Back
                 </button>
                 <button
-                    type="button"
-                    onClick={handleContinue}
+                    type="submit"
                     className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                 >
                     Continue
                 </button>
             </div>
-        </div>
+        </form>
     );
 };
 

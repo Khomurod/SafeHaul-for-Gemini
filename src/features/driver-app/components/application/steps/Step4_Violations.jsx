@@ -1,37 +1,26 @@
 import React from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Step4Schema } from './Step4_Schema';
 import InputField from '@shared/components/form/InputField';
 import RadioGroup from '@shared/components/form/RadioGroup';
 import DynamicRow from '@shared/components/form/DynamicRow';
 import { useData } from '@/context/DataContext';
 import { YES_NO_OPTIONS } from '@/config/form-options';
 
-const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNavigate }) => {
+const Step4_Violations = ({ control, onNavigate }) => {
     const { currentCompanyProfile } = useData();
     const currentCompany = currentCompanyProfile;
 
-    // --- Configuration ---
-    // We keep this helper in case you need to re-enable other config fields later
-    const getConfig = (fieldId, defaultReq = true) => {
-        const config = currentCompany?.applicationConfig?.[fieldId];
-        return {
-            hidden: config?.hidden || false,
-            required: config !== undefined ? config.required : defaultReq
-        };
-    };
+    const { handleSubmit, watch, register } = useForm({
+        resolver: zodResolver(Step4Schema),
+    });
 
-    const yesNoOptions = YES_NO_OPTIONS;
-    const initialViolation = { date: '', charge: '', location: '', penalty: '' };
-
-    const handleContinue = () => {
-        const form = document.getElementById('driver-form');
-        if (form) {
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-        }
+    const onSubmit = (data) => {
         onNavigate('next');
     };
+
+    const initialViolation = { date: '', charge: '', location: '', penalty: '' };
 
     const renderViolationRow = (index, item, handleChange) => (
         <div key={index} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -72,7 +61,7 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
     );
 
     return (
-        <div id="page-4" className="form-step space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="form-step space-y-6">
             <h3 className="text-xl font-semibold text-gray-800">Step 4 of 9: Motor Vehicle Record</h3>
 
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4">
@@ -81,101 +70,116 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
                 <div className="space-y-2 pt-4 border-t border-gray-200">
                     <label className="block text-sm font-medium text-gray-900">Motor Vehicle Record (MVR) Check</label>
                     <p className="text-sm text-gray-600">This is required for employment. We will pull your driving record from all states where you have held a license in the past 3 years.</p>
-                    <RadioGroup
-                        label="I Consent to MVR Check"
+                    <Controller
                         name="consent-mvr"
-                        options={yesNoOptions}
-                        value={formData['consent-mvr']}
-                        onChange={updateFormData}
-                        required={true}
+                        control={control}
+                        render={({ field }) => (
+                            <RadioGroup
+                                label="I Consent to MVR Check"
+                                options={YES_NO_OPTIONS}
+                                required={true}
+                                {...field}
+                            />
+                        )}
                     />
                 </div>
 
-                <RadioGroup
-                    label="Has any license, permit or privilege ever been denied, suspended, or revoked for any reason?"
+                <Controller
                     name="revoked-licenses"
-                    options={yesNoOptions}
-                    value={formData['revoked-licenses']}
-                    onChange={updateFormData}
-                    required={true}
+                    control={control}
+                    render={({ field }) => (
+                        <RadioGroup
+                            label="Has any license, permit or privilege ever been denied, suspended, or revoked for any reason?"
+                            options={YES_NO_OPTIONS}
+                            required={true}
+                            {...field}
+                        />
+                    )}
                 />
-                {formData['revoked-licenses'] === 'yes' && (
+                {watch('revoked-licenses') === 'yes' && (
                     <div className="pt-2 animate-in fade-in slide-in-from-top-1">
                         <label htmlFor="revocation-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please provide details (date, location, circumstances): <span className="text-red-500">*</span></label>
                         <textarea
                             id="revocation-explanation"
-                            name="revocationExplanation"
                             rows="3"
                             required
-                            value={formData.revocationExplanation || ""}
-                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Provide details here..."
+                            {...register('revocationExplanation')}
                         ></textarea>
                     </div>
                 )}
 
-                <RadioGroup
-                    label="Have you ever been convicted of driving during license suspension or revocation, or driving without a valid license or an expired license, or are any charges pending?"
+                <Controller
                     name="driving-convictions"
-                    options={yesNoOptions}
-                    value={formData['driving-convictions']}
-                    onChange={updateFormData}
-                    required={true}
+                    control={control}
+                    render={({ field }) => (
+                        <RadioGroup
+                            label="Have you ever been convicted of driving during license suspension or revocation, or driving without a valid license or an expired license, or are any charges pending?"
+                            options={YES_NO_OPTIONS}
+                            required={true}
+                            {...field}
+                        />
+                    )}
                 />
-                {formData['driving-convictions'] === 'yes' && (
+                {watch('driving-convictions') === 'yes' && (
                     <div className="pt-2 animate-in fade-in slide-in-from-top-1">
                         <label htmlFor="conviction-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please provide details (date, location, circumstances): <span className="text-red-500">*</span></label>
                         <textarea
                             id="conviction-explanation"
-                            name="convictionExplanation"
                             rows="3"
                             required
-                            value={formData.convictionExplanation || ""}
-                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Provide details here..."
+                            {...register('convictionExplanation')}
                         ></textarea>
                     </div>
                 )}
 
-                <RadioGroup
-                    label="Have you ever been convicted for any alcohol or controlled substance related offense while operating a motor vehicle, or are any charges pending?"
+                <Controller
                     name="drug-alcohol-convictions"
-                    options={yesNoOptions}
-                    value={formData['drug-alcohol-convictions']}
-                    onChange={updateFormData}
-                    required={true}
+                    control={control}
+                    render={({ field }) => (
+                        <RadioGroup
+                            label="Have you ever been convicted for any alcohol or controlled substance related offense while operating a motor vehicle, or are any charges pending?"
+                            options={YES_NO_OPTIONS}
+                            required={true}
+                            {...field}
+                        />
+                    )}
                 />
-                {formData['drug-alcohol-convictions'] === 'yes' && (
+                {watch('drug-alcohol-convictions') === 'yes' && (
                     <div className="pt-2 animate-in fade-in slide-in-from-top-1">
                         <label htmlFor="drug-conviction-explanation" className="block text-sm font-medium text-gray-700 mb-1">Please provide details (date, location, circumstances): <span className="text-red-500">*</span></label>
                         <textarea
                             id="drug-conviction-explanation"
-                            name="drugConvictionExplanation"
                             rows="3"
                             required
-                            value={formData.drugConvictionExplanation || ""}
-                            onChange={(e) => updateFormData(e.target.name, e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                             placeholder="Provide details here..."
+                            {...register('drugConvictionExplanation')}
                         ></textarea>
                     </div>
                 )}
 
-                {/* REMOVED: Upload Signed MVR Consent Form section */}
             </fieldset>
 
             <fieldset className="border border-gray-300 rounded-lg p-4 space-y-4 mt-6">
                 <legend className="text-lg font-semibold text-gray-800 px-2">Moving Violations (Past 3 Years)</legend>
                 <p className="text-sm text-gray-600">Please list all moving violations or traffic convictions within the past 3 years (whether in a personal or commercial vehicle).</p>
-                <DynamicRow
-                    listKey="violations"
-                    formData={formData}
-                    updateFormData={updateFormData}
-                    renderRow={renderViolationRow}
-                    initialItemState={initialViolation}
-                    addButtonLabel="+ Add Violation"
+                <Controller
+                    name="violations"
+                    control={control}
+                    render={({ field }) => (
+                        <DynamicRow
+                            listKey="violations"
+                            formData={{ violations: field.value }}
+                            updateFormData={(key, value) => field.onChange(value)}
+                            renderRow={renderViolationRow}
+                            initialItemState={initialViolation}
+                            addButtonLabel="+ Add Violation"
+                        />
+                    )}
                 />
             </fieldset>
 
@@ -188,14 +192,13 @@ const Step4_Violations = ({ formData, updateFormData, handleFileUpload, onNaviga
                     Back
                 </button>
                 <button
-                    type="button"
-                    onClick={handleContinue}
+                    type="submit"
                     className="w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200"
                 >
                     Continue
                 </button>
             </div>
-        </div>
+        </form>
     );
 };
 

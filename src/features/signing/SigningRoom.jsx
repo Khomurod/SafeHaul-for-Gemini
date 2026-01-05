@@ -22,6 +22,7 @@ export default function SigningRoom() {
   const accessToken = searchParams.get('token'); 
 
   const [request, setRequest] = useState(null);
+  const [secureUrl, setSecureUrl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [numPages, setNumPages] = useState(null);
@@ -51,6 +52,11 @@ export default function SigningRoom() {
 
         const data = result.data;
         setRequest(data);
+
+        // Get Secure URL
+        const getSecureUrlFn = httpsCallable(functions, 'getSecureUrl');
+        const secureUrlResult = await getSecureUrlFn({ storagePath: data.storagePath });
+        setSecureUrl(secureUrlResult.data.secureUrl);
 
         // Initialize Fields
         if (data.fields) {
@@ -219,7 +225,7 @@ export default function SigningRoom() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-8 flex justify-center bg-gray-200/50">
-            <Document file={request.pdfUrl} onLoadSuccess={({numPages}) => setNumPages(numPages)} className="flex flex-col gap-6">
+            <Document file={secureUrl} onLoadSuccess={({numPages}) => setNumPages(numPages)} className="flex flex-col gap-6">
                 {Array.from(new Array(numPages), (el, index) => (
                     // FIX: 'inline-block' is CRITICAL here. 
                     // It forces the div to shrink to the PDF image size, making the coordinate system accurate.
