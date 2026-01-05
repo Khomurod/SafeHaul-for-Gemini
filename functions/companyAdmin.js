@@ -24,7 +24,6 @@ function getServices() {
 }
 
 // --- FEATURE 1: GET COMPANY PROFILE ---
-// --- FEATURE 1: GET COMPANY PROFILE ---
 exports.getCompanyProfile = onCall({
     cors: true,
     maxInstances: 10
@@ -197,7 +196,7 @@ exports.sendAutomatedEmail = onCall({ cors: true }, async (request) => {
     return { success: true, message: "Email simulation successful." };
 });
 
-// --- FEATURE 5: GET PERFORMANCE HISTORY ---
+// --- FEATURE 5: GET PERFORMANCE HISTORY (FIXED) ---
 exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Login required.');
 
@@ -247,7 +246,7 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
         snapshot.forEach(doc => {
             const data = doc.data();
             const userId = data.performedBy || 'unknown';
-            console.log(`[PERFORMANCE] Activity by user ${userId} (${data.performedByName})`);
+            // console.log(`[PERFORMANCE] Activity by user ${userId} (${data.performedByName})`);
 
             // FILTER: Skip excluded users (Company Admins seen by regular staff)
             // if (excludedUserIds.has(userId)) return;
@@ -255,8 +254,24 @@ exports.getTeamPerformanceHistory = onCall({ cors: true }, async (request) => {
             const userName = data.performedByName || 'Unknown Recruiter';
             const outcome = data.outcome;
 
-            // Normalize Date (UTC YYYY-MM-DD)
-            const dateObj = data.timestamp.toDate();
+            // --- FIX START: Safe Date Handling ---
+            let dateObj;
+            try {
+                if (data.timestamp && typeof data.timestamp.toDate === 'function') {
+                    dateObj = data.timestamp.toDate();
+                } else if (data.timestamp instanceof Date) {
+                    dateObj = data.timestamp; // It's already a JS Date
+                } else {
+                    // It's a string, number, or missing. Skip this record.
+                    console.warn(`[PERFORMANCE] Skipped invalid timestamp in doc: ${doc.id}`, data.timestamp);
+                    return; 
+                }
+            } catch (err) {
+                console.warn(`[PERFORMANCE] Date parsing error in doc: ${doc.id}`, err);
+                return;
+            }
+            // --- FIX END ---
+
             const dateKey = dateObj.toISOString().split('T')[0];
 
             // Initialize User Stats (Summary)
