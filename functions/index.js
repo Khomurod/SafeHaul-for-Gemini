@@ -39,9 +39,10 @@ exports.deleteCompany = companyAdmin.deleteCompany;
 exports.getTeamPerformanceHistory = companyAdmin.getTeamPerformanceHistory;
 
 // 4. Applications & Driver Sync
-exports.onApplicationSubmitted = driverSync.onApplicationSubmitted; // Corrected source: driverSync
-exports.onLeadSubmitted = driverSync.onLeadSubmitted; // Corrected source: driverSync
-exports.syncDriverOnLog = driverSync.syncDriverOnLog; // <--- NEW EXPORT
+exports.onApplicationSubmitted = driverSync.onApplicationSubmitted;
+exports.onLeadSubmitted = driverSync.onLeadSubmitted;
+exports.syncDriverOnLog = driverSync.syncDriverOnLog;
+exports.syncDriverOnActivity = driverSync.syncDriverOnActivity; // <--- NEW EXPORT
 exports.moveApplication = companyAdmin.moveApplication;
 exports.sendAutomatedEmail = companyAdmin.sendAutomatedEmail;
 
@@ -51,10 +52,9 @@ exports.handleLeadOutcome = leadDistribution.handleLeadOutcome;
 exports.migrateDriversToLeads = leadDistribution.migrateDriversToLeads;
 exports.confirmDriverInterest = leadDistribution.confirmDriverInterest;
 exports.runLeadDistribution = leadDistribution.runLeadDistribution;
-exports.distributeDailyLeads = leadDistribution.distributeDailyLeads; // Manual trigger
-exports.distributeDailyLeadsScheduled = leadDistribution.distributeDailyLeadsScheduled; // Scheduled
+exports.planLeadDistribution = leadDistribution.planLeadDistribution; // <--- NEW EXPORT
+exports.distributeDailyLeads = leadDistribution.distributeDailyLeads;
 exports.getLeadSupplyAnalytics = leadDistribution.getLeadSupplyAnalytics;
-exports.bulkAssignLeads = leadDistribution.bulkAssignLeads; // <--- Preserved from previous step
 
 // 6. System Integrity
 exports.syncSystemStructure = systemIntegrity.syncSystemStructure;
@@ -72,8 +72,11 @@ exports.runMigration = companyAdmin.runMigration;
 exports.searchUnifiedData = searchHandler.searchUnifiedData;
 
 // 9. Scheduled Jobs
+// 9. Scheduled Jobs
+// 9. Scheduled Jobs
 const customJobs = require('./customJobs');
-exports.checkDocumentExpirations = customJobs.checkDocumentExpirations;
+// exports.checkDocumentExpirations = customJobs.checkDocumentExpirations;
+exports.debugAppCounts = customJobs.debugAppCounts;
 
 // 9. Analytics (Commented out to prevent Gen 1 CPU errors)
 /*

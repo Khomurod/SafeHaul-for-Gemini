@@ -122,6 +122,8 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
 
             let isConversion = false;
             // CHECK FOR CONVERSION: Leads -> Applications (If Interested)
+            // USER REQUEST: Disable auto-conversion. Driver must accept manually.
+            /*
             if (collectionName === 'leads' && outcome === 'interested') {
                 isConversion = true;
                 const appRef = doc(db, 'companies', companyId, 'applications', lead.id);
@@ -140,27 +142,28 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
 
                 console.log(`Converted lead ${lead.id} to application.`);
             } else {
-                // NORMAL UPDATE
-                if (!leadSnap.exists()) {
-                    await setDoc(companyLeadRef, {
-                        ...lead,
-                        status: 'Attempted',
-                        createdAt: serverTimestamp(),
-                        updatedAt: serverTimestamp(),
-                        source: 'Search DB Call',
-                        isPlatformLead: true,
-                        originalLeadId: lead.id
-                    });
-                }
-
-                await updateDoc(companyLeadRef, updateData);
+            */
+            // NORMAL UPDATE
+            if (!leadSnap.exists()) {
+                await setDoc(companyLeadRef, {
+                    ...lead,
+                    status: 'Attempted',
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp(),
+                    source: 'Search DB Call',
+                    isPlatformLead: true,
+                    originalLeadId: lead.id
+                });
             }
+
+            await updateDoc(companyLeadRef, updateData);
+            // }
 
             // --- Activity Logging (Always Log) ---
             // If converted, log to NEW application. Else log to lead.
             const targetCollection = isConversion ? 'applications' : collectionName;
 
-            await addDoc(collection(db, 'companies', companyId, targetCollection, lead.id, 'activity_logs'), {
+            await addDoc(collection(db, 'companies', companyId, targetCollection, lead.id, 'activities'), {
                 type: 'call',
                 action: 'Call Logged',
                 outcome: outcome,

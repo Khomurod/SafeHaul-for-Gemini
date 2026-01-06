@@ -3,9 +3,9 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, db } = require("./firebaseAdmin"); // <--- Added admin/db imports
-const { 
-    runLeadDistribution, 
-    populateLeadsFromDrivers, 
+const {
+    runLeadDistribution,
+    populateLeadsFromDrivers,
     runCleanup,
     processLeadOutcome,
     generateDailyAnalytics,
@@ -14,25 +14,43 @@ const {
 
 const RUNTIME_OPTS = {
     timeoutSeconds: 540,
-    memory: '512MiB', 
+    memory: '512MiB',
     maxInstances: 1,
     concurrency: 1,
-    cors: true 
+    cors: true
 };
 
-// --- 1. SCHEDULED TASK (6:30 AM Central Time) ---
-exports.runLeadDistribution = onSchedule({
-    schedule: "30 6 * * *", 
+// --- 1. PLANNING PHASE (6:00 AM Central Time) ---
+exports.planLeadDistribution = onSchedule({
+    schedule: "0 6 * * *",
     timeZone: "America/Chicago",
     timeoutSeconds: 540,
     memory: '512MiB'
 }, async (event) => {
     try {
-        console.log("Running scheduled daily distribution (6:30 AM CT)...");
-        const result = await runLeadDistribution(true);
-        console.log("Scheduled result:", result);
+        console.log("Running scheduled daily PLANNING (6:00 AM CT)...");
+        // For now, planning just identifies counts and marks pool leads. 
+        // We can extend this to set a 'plannedFor' flag later.
+        const result = await runLeadDistribution(false); // Run without rotation to 'prime' the engine
+        console.log("Planning result:", result);
     } catch (error) {
-        console.error("Scheduled failed:", error);
+        console.error("Planning failed:", error);
+    }
+});
+
+// --- 2. EXECUTION PHASE (7:00 AM Central Time) ---
+exports.runLeadDistribution = onSchedule({
+    schedule: "0 7 * * *",
+    timeZone: "America/Chicago",
+    timeoutSeconds: 540,
+    memory: '512MiB'
+}, async (event) => {
+    try {
+        console.log("Running scheduled daily EXECUTION (7:00 AM CT)...");
+        const result = await runLeadDistribution(true); // Force rotation
+        console.log("Execution result:", result);
+    } catch (error) {
+        console.error("Execution failed:", error);
     }
 });
 
@@ -43,7 +61,7 @@ exports.distributeDailyLeads = onCall(RUNTIME_OPTS, async (request) => {
     }
     try {
         console.log("Super Admin forcing manual lead distribution round...");
-        const result = await runLeadDistribution(true); 
+        const result = await runLeadDistribution(true);
         return result;
     } catch (error) {
         throw new HttpsError("internal", error.message);
@@ -180,7 +198,7 @@ exports.getLeadSupplyAnalytics = onCall(RUNTIME_OPTS, async (request) => {
             },
             health: {
                 status: availableSupply >= totalDailyDemand ? 'surplus' : 'deficit',
-                gap: availableSupply - totalDailyDemand 
+                gap: availableSupply - totalDailyDemand
             }
         };
 

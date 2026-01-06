@@ -130,8 +130,22 @@ exports.onLeadSubmitted = onDocumentCreated({
   await processDriverData(event.data.data(), event.params.leadId);
 });
 
-// 4. Sync Driver Log Activity (Fix for Permission Error)
-exports.syncDriverOnLog = onDocumentCreated("companies/{companyId}/{collectionId}/{leadId}/activity_logs/{logId}", async (event) => {
+// 4. Sync Driver Log Activity (Fix for Permission Error + Support both 'activities' and 'activity_logs')
+exports.syncDriverOnActivity = onDocumentCreated({
+  document: "companies/{companyId}/{collectionId}/{leadId}/activities/{logId}",
+  maxInstances: 5
+}, async (event) => {
+  return handleLogSync(event);
+});
+
+exports.syncDriverOnLog = onDocumentCreated({
+  document: "companies/{companyId}/{collectionId}/{leadId}/activity_logs/{logId}",
+  maxInstances: 5
+}, async (event) => {
+  return handleLogSync(event);
+});
+
+async function handleLogSync(event) {
   if (!event.data) return;
 
   const data = event.data.data();
@@ -178,9 +192,9 @@ exports.syncDriverOnLog = onDocumentCreated("companies/{companyId}/{collectionId
     }
 
   } catch (error) {
-    console.error(`[syncDriverOnLog] Failed to sync driver ${leadId}:`, error);
+    console.error(`[handleLogSync] Failed to sync driver ${leadId}:`, error);
   }
-});
+}
 
 // 3. Company Leads (Bulk Uploads / Private) - NEW
 exports.onCompanyLeadSubmitted = onDocumentCreated({
