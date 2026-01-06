@@ -75,7 +75,7 @@ exports.searchUnifiedData = searchHandler.searchUnifiedData;
 // 9. Scheduled Jobs
 // 9. Scheduled Jobs
 const customJobs = require('./customJobs');
-// exports.checkDocumentExpirations = customJobs.checkDocumentExpirations;
+
 exports.debugAppCounts = customJobs.debugAppCounts;
 
 // 9. Analytics (Commented out to prevent Gen 1 CPU errors)

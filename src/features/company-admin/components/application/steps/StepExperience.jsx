@@ -1,19 +1,9 @@
 import React from 'react';
 import { Truck, AlertTriangle, ShieldCheck, CheckCircle, XCircle, Languages, Beaker, RotateCcw, Plus, Trash2 } from 'lucide-react';
-
-const EXPERIENCE_OPTIONS = [
-    { value: 'New', label: 'Student / Recent Grad' },
-    { value: '0-6 months', label: '0-6 Months' },
-    { value: '6-12 months', label: '6-12 Months' },
-    { value: '1', label: '1 Year' },
-    { value: '2', label: '2 Years' },
-    { value: '3', label: '3 Years' },
-    { value: '4', label: '4 Years' },
-    { value: '5+', label: '5+ Years' }
-];
+import { EXPERIENCE_OPTIONS } from '../../../../../../config/form-options';
 
 const EQUIPMENT_TYPES = [
-    "Dry Van", "Reefer", "Flatbed", "Tanker", "Box Truck", 
+    "Dry Van", "Reefer", "Flatbed", "Tanker", "Box Truck",
     "Car Hauler", "Step Deck", "Lowboy", "Intermodal", "Power Only"
 ];
 
@@ -60,7 +50,7 @@ export function StepExperience({ data, onChange }) {
 
     return (
         <div className="space-y-6 animate-in slide-in-from-right duration-500">
-            
+
             {/* Experience Card */}
             <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <h3 className="font-bold text-gray-900 flex items-center gap-2 mb-6">
@@ -94,11 +84,10 @@ export function StepExperience({ data, onChange }) {
                                         key={type}
                                         type="button"
                                         onClick={() => toggleEquipment(type)}
-                                        className={`px-3 py-2 text-sm font-medium rounded-lg border text-left transition-all ${
-                                            isSelected 
-                                            ? 'bg-blue-50 border-blue-500 text-blue-700' 
-                                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                                        }`}
+                                        className={`px-3 py-2 text-sm font-medium rounded-lg border text-left transition-all ${isSelected
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                            }`}
                                     >
                                         {type}
                                     </button>
@@ -166,11 +155,11 @@ export function StepExperience({ data, onChange }) {
                         <div className="flex gap-4">
                             <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 flex-1">
                                 <input type="radio" name="drug-test-positive" value="no" checked={data['drug-test-positive'] === 'no'} onChange={handleChange} className="w-4 h-4 text-green-600" required />
-                                <span className="text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={16}/> No</span>
+                                <span className="text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={16} /> No</span>
                             </label>
                             <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 flex-1">
                                 <input type="radio" name="drug-test-positive" value="yes" checked={data['drug-test-positive'] === 'yes'} onChange={handleChange} className="w-4 h-4 text-red-600" />
-                                <span className="text-sm font-bold text-red-700 flex items-center gap-1"><XCircle size={16}/> Yes</span>
+                                <span className="text-sm font-bold text-red-700 flex items-center gap-1"><XCircle size={16} /> Yes</span>
                             </label>
                         </div>
                     </div>
@@ -215,18 +204,18 @@ export function StepExperience({ data, onChange }) {
                 </h3>
 
                 <div className="space-y-6">
-                    
+
                     {/* Accidents */}
                     <div>
                         <p className="font-medium text-gray-800 mb-3">Have you had any accidents in the last 3 years? <span className="text-red-500">*</span></p>
                         <div className="flex gap-4">
                             <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 flex-1">
                                 <input type="radio" name="hasAccidents" value="no" checked={data.hasAccidents === 'no'} onChange={handleChange} className="w-4 h-4 text-green-600" required />
-                                <span className="text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={16}/> No Accidents</span>
+                                <span className="text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={16} /> No Accidents</span>
                             </label>
                             <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 flex-1">
                                 <input type="radio" name="hasAccidents" value="yes" checked={data.hasAccidents === 'yes'} onChange={handleChange} className="w-4 h-4 text-red-600" />
-                                <span className="text-sm font-bold text-red-700 flex items-center gap-1"><XCircle size={16}/> Yes</span>
+                                <span className="text-sm font-bold text-red-700 flex items-center gap-1"><XCircle size={16} /> Yes</span>
                             </label>
                         </div>
 
@@ -234,7 +223,7 @@ export function StepExperience({ data, onChange }) {
                             <div className="mt-4 space-y-3">
                                 {accidents.map((acc, i) => (
                                     <div key={i} className="bg-gray-50 p-4 rounded-lg border relative">
-                                        <button type="button" onClick={() => handleRemoveAccident(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                        <button type="button" onClick={() => handleRemoveAccident(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                                         <div className="grid grid-cols-3 gap-3 mb-2">
                                             <input type="date" placeholder="Date" className="p-2 border rounded text-sm" value={acc.date} onChange={(e) => handleUpdateAccident(i, 'date', e.target.value)} />
                                             <input type="text" placeholder="City" className="p-2 border rounded text-sm" value={acc.city} onChange={(e) => handleUpdateAccident(i, 'city', e.target.value)} />
@@ -247,7 +236,7 @@ export function StepExperience({ data, onChange }) {
                                         </div>
                                     </div>
                                 ))}
-                                <button type="button" onClick={handleAddAccident} className="text-sm text-blue-600 flex items-center gap-1 font-medium"><Plus size={16}/> Add Accident</button>
+                                <button type="button" onClick={handleAddAccident} className="text-sm text-blue-600 flex items-center gap-1 font-medium"><Plus size={16} /> Add Accident</button>
                             </div>
                         )}
                     </div>
@@ -258,11 +247,11 @@ export function StepExperience({ data, onChange }) {
                         <div className="flex gap-4">
                             <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 flex-1">
                                 <input type="radio" name="hasViolations" value="no" checked={data.hasViolations === 'no'} onChange={handleChange} className="w-4 h-4 text-green-600" required />
-                                <span className="text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={16}/> Clean Record</span>
+                                <span className="text-sm font-bold text-green-700 flex items-center gap-1"><CheckCircle size={16} /> Clean Record</span>
                             </label>
                             <label className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 flex-1">
                                 <input type="radio" name="hasViolations" value="yes" checked={data.hasViolations === 'yes'} onChange={handleChange} className="w-4 h-4 text-red-600" />
-                                <span className="text-sm font-bold text-red-700 flex items-center gap-1"><XCircle size={16}/> Yes</span>
+                                <span className="text-sm font-bold text-red-700 flex items-center gap-1"><XCircle size={16} /> Yes</span>
                             </label>
                         </div>
 
@@ -270,7 +259,7 @@ export function StepExperience({ data, onChange }) {
                             <div className="mt-4 space-y-3">
                                 {violations.map((vio, i) => (
                                     <div key={i} className="bg-gray-50 p-4 rounded-lg border relative">
-                                        <button type="button" onClick={() => handleRemoveViolation(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                        <button type="button" onClick={() => handleRemoveViolation(i)} className="absolute top-2 right-2 text-red-400 hover:text-red-600"><Trash2 size={16} /></button>
                                         <div className="grid grid-cols-3 gap-3">
                                             <input type="date" placeholder="Date" className="p-2 border rounded text-sm" value={vio.date} onChange={(e) => handleUpdateViolation(i, 'date', e.target.value)} />
                                             <input type="text" placeholder="Charge/Violation" className="p-2 border rounded text-sm col-span-2" value={vio.charge} onChange={(e) => handleUpdateViolation(i, 'charge', e.target.value)} />
@@ -278,7 +267,7 @@ export function StepExperience({ data, onChange }) {
                                         <input type="text" placeholder="Location (City, State)" className="w-full p-2 border rounded text-sm mt-2" value={vio.location} onChange={(e) => handleUpdateViolation(i, 'location', e.target.value)} />
                                     </div>
                                 ))}
-                                <button type="button" onClick={handleAddViolation} className="text-sm text-blue-600 flex items-center gap-1 font-medium"><Plus size={16}/> Add Violation</button>
+                                <button type="button" onClick={handleAddViolation} className="text-sm text-blue-600 flex items-center gap-1 font-medium"><Plus size={16} /> Add Violation</button>
                             </div>
                         )}
                     </div>

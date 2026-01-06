@@ -92,7 +92,7 @@ service cloud.firestore {
       allow get: if true; 
       
       // LIST: Allow public to query by slug/id (PublicApplyHandler uses where("appSlug", "==", slug))
-      allow list: if true;
+      allow list: if request.query.limit <= 1;
 
       // WRITE: Super Admin or Company Admin
       allow create, delete: if isSuperAdmin();

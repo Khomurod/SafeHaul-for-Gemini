@@ -1,13 +1,14 @@
 // src/features/driver-app/components/application/PublicApplyHandler.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, serverTimestamp, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@lib/firebase';
 import { Loader2, AlertCircle, Building2 } from 'lucide-react';
 import Stepper from '@shared/components/layout/Stepper';
 import { useToast } from '@shared/components/feedback/ToastProvider';
 import { useData } from '@/context/DataContext';
+import { isValidEmail, isValidPhone } from '@shared/utils/validation';
 
 export function PublicApplyHandler() {
   const { slug } = useParams();
@@ -41,7 +42,7 @@ export function PublicApplyHandler() {
         let companyData = null;
         let companyId = null;
 
-        const q = query(collection(db, "companies"), where("appSlug", "==", slug));
+        const q = query(collection(db, "companies"), where("appSlug", "==", slug), limit(1));
         const snapshot = await getDocs(q);
 
         if (!snapshot.empty) {
@@ -56,18 +57,7 @@ export function PublicApplyHandler() {
           }
         }
 
-        // --- DEBUG MOCK ---
-        if (slug === 'debug-mock') {
-          companyData = {
-            id: 'debug-company-123',
-            companyName: 'Debug Transport Logistics',
-            appSlug: 'debug-mock',
-            applicationConfig: {
-              showEmergencyContacts: true
-            }
-          };
-        }
-        // ------------------
+
 
         if (!companyData) {
           setError("Company not found.");
@@ -158,6 +148,16 @@ export function PublicApplyHandler() {
     if (!formData.signature || !formData['final-certification']) {
       showError("Please complete the electronic signature in Step 9.");
       setCurrentStep(8); // Automatically jump to Step 9 (0-based index)
+      return;
+    }
+
+    // VALIDATION INTEGRATION
+    if (!isValidEmail(formData.email)) {
+      showError("Invalid Email Address.");
+      return;
+    }
+    if (!isValidPhone(formData.phone)) {
+      showError("Invalid Phone Number.");
       return;
     }
 

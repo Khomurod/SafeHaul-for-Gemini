@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { normalizePhone, formatPhoneNumber } from '@shared/utils/helpers';
 import { auth } from '@lib/firebase';
+import { EXPERIENCE_OPTIONS } from '../../../config/form-options';
 
 const OUTCOMES_CONFIG = [
   {
@@ -64,19 +65,13 @@ const DRIVER_TYPES = [
 ];
 
 const POSITIONS = [
-  'Company Driver (Solo)', 'Company Driver (Team)', 
-  'Lease Operator (Solo)', 'Lease Operator (Team)', 
+  'Company Driver (Solo)', 'Company Driver (Team)',
+  'Lease Operator (Solo)', 'Lease Operator (Team)',
   'Owner Operator (Solo)', 'Owner Operator (Team)',
   'Lease to Purchase (Solo)', 'Lease to Purchase (Team)'
 ];
 
-const EXPERIENCE_OPTIONS = [
-  'Less than 6 months', 
-  'Less than 1 year', 
-  'More than 1 year', 
-  'More than 2 years', 
-  'More than 5 years'
-];
+
 
 const getTelegramLink = (rawPhone) => {
   if (!rawPhone) return '';
@@ -92,46 +87,46 @@ export function CallOutcomeModalUI({
   setOutcome,
   notes,
   setNotes,
-  
+
   driverType, setDriverType,
   experienceLevel, setExperienceLevel,
   position, setPosition,
-  
+
   callbackDate, setCallbackDate,
   callbackTime, setCallbackTime,
   saving,
   handleSave,
-  
+
   showDetailInputs,
   showCallbackSelect,
   onQuickReminder,
   companySlug
 }) {
-  
+
   const [copied, setCopied] = useState(false);
 
   const handleQuickReminder = () => {
-      const now = new Date();
-      now.setHours(now.getHours() + 1);
-      const dateStr = now.toISOString().split('T')[0];
-      const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
-      
-      setCallbackDate(dateStr);
-      setCallbackTime(timeStr);
-      setOutcome('callback');
-      setNotes('Quick reminder set: No Answer (1 hr follow-up)');
+    const now = new Date();
+    now.setHours(now.getHours() + 1);
+    const dateStr = now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+
+    setCallbackDate(dateStr);
+    setCallbackTime(timeStr);
+    setOutcome('callback');
+    setNotes('Quick reminder set: No Answer (1 hr follow-up)');
   };
 
   const driverAppBase = import.meta.env.VITE_DRIVER_APP_URL || window.location.origin;
   const currentRecruiterId = auth.currentUser?.uid;
   const safeSlug = companySlug || 'general';
-  
+
   const recruiterLink = `${driverAppBase.replace(/\/$/, '')}/interest/${safeSlug}?r=${currentRecruiterId}&l=${lead.id}`;
 
   const copyLink = () => {
-      navigator.clipboard.writeText(recruiterLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+    navigator.clipboard.writeText(recruiterLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -160,9 +155,9 @@ export function CallOutcomeModalUI({
             <span className="text-gray-500">Driver: </span>
             <span className="font-bold text-gray-900">{lead.firstName} {lead.lastName}</span>
           </div>
-          
+
           {lead.phone && (
-             <a
+            <a
               href={`tel:${lead.phone}`}
               className="text-xs bg-green-100 text-green-700 px-3 py-1.5 rounded-full font-bold flex items-center gap-1 hover:bg-green-200 transition-colors"
               title="Call now"
@@ -173,22 +168,21 @@ export function CallOutcomeModalUI({
         </div>
 
         <form onSubmit={handleSave} className="p-5 space-y-5 overflow-y-auto">
-          
+
           <div className="grid grid-cols-2 gap-3">
             {OUTCOMES_CONFIG.map((opt) => {
               if (opt.id === 'hired_elsewhere' && !lead.isPlatformLead) return null;
-              
+
               const isSelected = outcome === opt.id;
               return (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => setOutcome(opt.id)}
-                  className={`p-3 rounded-lg border text-xs font-bold flex flex-col items-center gap-2 transition-all text-center ${
-                    isSelected
+                  className={`p-3 rounded-lg border text-xs font-bold flex flex-col items-center gap-2 transition-all text-center ${isSelected
                       ? `${opt.color} ring-2 ring-offset-1 ring-blue-500`
                       : 'border-gray-200 hover:bg-gray-50 text-gray-600'
-                  }`}
+                    }`}
                 >
                   {opt.icon}
                   {opt.label}
@@ -198,37 +192,37 @@ export function CallOutcomeModalUI({
           </div>
 
           {outcome === 'interested' && (
-             <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl animate-in fade-in slide-in-from-top-2">
-                 <div className="flex gap-3 items-start">
-                    <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shrink-0">
-                         <Send size={20} />
-                     </div>
-                     <div className="flex-1 min-w-0">
-                         <h4 className="text-sm font-bold text-blue-900">Next Step: Send Invite</h4>
-                         <p className="text-xs text-blue-700 mt-1 mb-3 break-words">
-                             Send this specific link. It asks "Are you interested?" and assigns them to <strong>YOU</strong> upon confirmation.
-                        </p>
-                         <div className="flex items-center gap-2 bg-white p-2 rounded border border-blue-100 w-full">
-                             <code className="flex-1 text-xs font-mono text-gray-500 truncate block">{recruiterLink}</code>
-                             <button type="button" onClick={copyLink} className="text-blue-600 hover:text-blue-800 shrink-0">
-                                 {copied ? <Check size={14}/> : <Copy size={14}/>}
-                             </button>
-                         </div>
-                     </div>
-                 </div>
-             </div>
+            <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl animate-in fade-in slide-in-from-top-2">
+              <div className="flex gap-3 items-start">
+                <div className="bg-blue-100 p-2 rounded-lg text-blue-600 shrink-0">
+                  <Send size={20} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-sm font-bold text-blue-900">Next Step: Send Invite</h4>
+                  <p className="text-xs text-blue-700 mt-1 mb-3 break-words">
+                    Send this specific link. It asks "Are you interested?" and assigns them to <strong>YOU</strong> upon confirmation.
+                  </p>
+                  <div className="flex items-center gap-2 bg-white p-2 rounded border border-blue-100 w-full">
+                    <code className="flex-1 text-xs font-mono text-gray-500 truncate block">{recruiterLink}</code>
+                    <button type="button" onClick={copyLink} className="text-blue-600 hover:text-blue-800 shrink-0">
+                      {copied ? <Check size={14} /> : <Copy size={14} />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           {outcome === 'no_answer' && (
-              <div className="flex justify-center animate-in fade-in">
-                  <button 
-                    type="button" 
-                    onClick={handleQuickReminder}
-                    className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 text-xs font-bold rounded-full hover:bg-orange-200 transition-colors"
-                  >
-                      <BellPlus size={14} /> Remind me in 1 Hour
-                  </button>
-              </div>
+            <div className="flex justify-center animate-in fade-in">
+              <button
+                type="button"
+                onClick={handleQuickReminder}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-700 text-xs font-bold rounded-full hover:bg-orange-200 transition-colors"
+              >
+                <BellPlus size={14} /> Remind me in 1 Hour
+              </button>
+            </div>
           )}
 
           {showCallbackSelect && (
@@ -262,48 +256,48 @@ export function CallOutcomeModalUI({
 
           {showDetailInputs && (
             <div className="space-y-3 pt-2 border-t border-gray-100 animate-in fade-in slide-in-from-top-2">
-                <h4 className="text-xs font-bold text-gray-500 uppercase">Verify Driver Details</h4>
-                
-                <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Position</label>
-                    <select
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={position}
-                        onChange={(e) => setPosition(e.target.value)}
-                    >
-                        <option value="">-- Select Position --</option>
-                        {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                </div>
+              <h4 className="text-xs font-bold text-gray-500 uppercase">Verify Driver Details</h4>
 
-                <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Experience</label>
-                    <select
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={experienceLevel}
-                        onChange={(e) => setExperienceLevel(e.target.value)}
-                    >
-                        <option value="">-- Select Experience --</option>
-                        {EXPERIENCE_OPTIONS.map(ex => <option key={ex} value={ex}>{ex}</option>)}
-                    </select>
-                </div>
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Position</label>
+                <select
+                  className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                >
+                  <option value="">-- Select Position --</option>
+                  {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
 
-                <div>
-                    <label className="block text-[10px] text-gray-400 mb-1">Freight Type</label>
-                    <select
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
-                        value={driverType}
-                        onChange={(e) => setDriverType(e.target.value)}
-                    >
-                        <option value="">-- Select Type --</option>
-                        {DRIVER_TYPES.map((type) => (
-                            <option key={type} value={type}>{type}</option>
-                        ))}
-                    </select>
-                </div>
-                <p className="text-[10px] text-gray-400 italic flex items-center gap-1">
-                    <User size={10} /> Updating these fields helps the network.
-                </p>
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Experience</label>
+                <select
+                  className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={experienceLevel}
+                  onChange={(e) => setExperienceLevel(e.target.value)}
+                >
+                  <option value="">-- Select Experience --</option>
+                  {EXPERIENCE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] text-gray-400 mb-1">Freight Type</label>
+                <select
+                  className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={driverType}
+                  onChange={(e) => setDriverType(e.target.value)}
+                >
+                  <option value="">-- Select Type --</option>
+                  {DRIVER_TYPES.map((type) => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-[10px] text-gray-400 italic flex items-center gap-1">
+                <User size={10} /> Updating these fields helps the network.
+              </p>
             </div>
           )}
 

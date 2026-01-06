@@ -359,16 +359,7 @@ async function harvestNotesBeforeDelete(docSnap, data) {
     } catch (e) { }
 }
 
-async function generateDailyAnalytics() {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const companiesCount = (await db.collection("companies").count().get()).data().count;
-    await db.collection("analytics").doc(todayStr).set({
-        date: todayStr,
-        metrics: { totalCompanies: companiesCount },
-        timestamp: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-    return { success: true };
-}
+
 
 module.exports = {
     runLeadDistribution,
@@ -376,5 +367,5 @@ module.exports = {
     runCleanup,
     processLeadOutcome,
     confirmDriverInterest,
-    generateDailyAnalytics
+
 };
