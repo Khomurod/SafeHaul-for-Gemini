@@ -217,9 +217,6 @@ export function DashboardBody({
                         {visibleColumns.includes('lastCall') && (
                             <td className={`px-6 py-4 align-middle text-center ${getColWidth('lastCall')}`}>
                                 <div className="flex flex-col items-center gap-1">
-                                    <span className="text-xs text-gray-900 font-medium">
-                                        {item.lastCall ? new Date(item.lastCall.toDate ? item.lastCall.toDate() : item.lastCall).toLocaleDateString() : '-'}
-                                    </span>
                                     {item.lastCallOutcome ? (
                                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${callConfig.style}`}>
                                             {/* <OutcomeIcon size={10} strokeWidth={2.5} /> */}

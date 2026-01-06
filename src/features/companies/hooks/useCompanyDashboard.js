@@ -192,7 +192,7 @@ export function useCompanyDashboard(companyId) {
                     id: doc.id,
                     companyId,
                     ...d,
-                    // FIX: Explicitly map fields for DashboardTableV2
+                    // FIX: Explicitly map fields for DashboardTable
                     lastCall: d.lastContactedAt || d.lastCall,
                     lastCallOutcome: d.lastCallOutcome
                 };
