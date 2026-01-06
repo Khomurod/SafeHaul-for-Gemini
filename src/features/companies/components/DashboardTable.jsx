@@ -102,7 +102,8 @@ export const DashboardTable = memo(function DashboardTable({
     // Calculate effective columns based on active tab
     const effectiveVisibleColumns = useMemo(() => {
         if (activeTab === 'find_driver') {
-            return visibleColumns.filter(col => col !== 'status' && col !== 'lastCall');
+            // Only hide Status for SafeHaul Leads, but SHOW Last Call (per user request)
+            return visibleColumns.filter(col => col !== 'status');
         }
         return visibleColumns;
     }, [visibleColumns, activeTab]);

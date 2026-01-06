@@ -216,16 +216,21 @@ export function DashboardBody({
                         {/* LAST CALL */}
                         {visibleColumns.includes('lastCall') && (
                             <td className={`px-6 py-4 align-middle text-center ${getColWidth('lastCall')}`}>
-                                {item.lastCallOutcome ? (
-                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide border ${callConfig.style}`}>
-                                        <OutcomeIcon size={12} strokeWidth={2.5} />
-                                        {item.lastCallOutcome}
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-xs text-gray-900 font-medium">
+                                        {item.lastCall ? new Date(item.lastCall.toDate ? item.lastCall.toDate() : item.lastCall).toLocaleDateString() : '-'}
                                     </span>
-                                ) : (
-                                    <span className="text-xs text-gray-400 italic flex items-center justify-center gap-1 opacity-60">
-                                        <PhoneOutgoing size={14} /> No Calls
-                                    </span>
-                                )}
+                                    {item.lastCallOutcome ? (
+                                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide border ${callConfig.style}`}>
+                                            {/* <OutcomeIcon size={10} strokeWidth={2.5} /> */}
+                                            {item.lastCallOutcome}
+                                        </span>
+                                    ) : (
+                                        <span className="text-[10px] text-gray-400 italic opacity-60">
+                                            -
+                                        </span>
+                                    )}
+                                </div>
                             </td>
                         )}
 
