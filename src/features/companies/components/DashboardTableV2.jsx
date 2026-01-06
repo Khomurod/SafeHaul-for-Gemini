@@ -132,9 +132,23 @@ export function DashboardTableV2({
                 header: 'Last Call',
                 cell: info => {
                     const val = info.getValue();
+                    const outcome = info.row.original.lastCallOutcome;
+
+                    let outcomeColor = "text-gray-400";
+                    if (outcome === 'Interested' || outcome === 'Connected / Interested') outcomeColor = "text-green-600 font-bold";
+                    if (outcome === 'No Answer' || outcome === 'Left Voicemail') outcomeColor = "text-orange-500";
+                    if (outcome?.includes('Not')) outcomeColor = "text-red-500";
+
                     return (
-                        <div className="text-center text-xs text-gray-600">
-                            {val ? new Date(val.toDate ? val.toDate() : val).toLocaleDateString() : '-'}
+                        <div className="text-center flex flex-col gap-0.5">
+                            <span className="text-xs text-gray-900 font-medium">
+                                {val ? new Date(val.toDate ? val.toDate() : val).toLocaleDateString() : '-'}
+                            </span>
+                            {outcome && (
+                                <span className={`text-[10px] uppercase ${outcomeColor} truncate max-w-[120px]`}>
+                                    {outcome}
+                                </span>
+                            )}
                         </div>
                     )
                 },

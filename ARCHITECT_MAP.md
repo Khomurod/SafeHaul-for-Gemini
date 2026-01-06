@@ -71,3 +71,8 @@ Any field added to the **Driver Input** (Left) MUST be rendered in the **Admin O
 
 ### B. Validation Strategy
 * **Submission Gate**: The `handleFinalSubmit` function in `PublicApplyHandler.jsx` and `DriverApplicationWizard.jsx` MUST validate that `signatureName` exists and `final-certification` is checked before allowing the write to Firestore.
+
+## 5. Lead Lifecycle & Conversion Rules
+* **No Auto-Conversion**: Marking a lead as "Interested" via Call Outcome NEVER moves it to Applications. It simply updates the status to "Contacted".
+* **The Only Path**: A Lead is converted to an Application ONLY when the Driver clicks the "Interest Link" (triggering `confirmDriverInterest`) OR submits a full application via the Recruiter Link.
+* **Data Isolation**: Last Call Status (`lastCallOutcome`) is strictly local to the Company and must not sync to other companies viewing the same Lead.

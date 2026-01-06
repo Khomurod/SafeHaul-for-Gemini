@@ -120,29 +120,10 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
                 }
             }
 
-            let isConversion = false;
             // CHECK FOR CONVERSION: Leads -> Applications (If Interested)
             // USER REQUEST: Disable auto-conversion. Driver must accept manually.
-            /*
-            if (collectionName === 'leads' && outcome === 'interested') {
-                isConversion = true;
-                const appRef = doc(db, 'companies', companyId, 'applications', lead.id);
-                // Create Application
-                await setDoc(appRef, {
-                    ...lead,
-                    ...updateData,
-                    status: 'New Application',
-                    convertedAt: serverTimestamp(),
-                    sourceType: 'Network Lead',
-                    history: lead.history || []
-                });
+            const isConversion = false; // Strictly enforced to FALSE
 
-                // Delete Lead
-                await deleteDoc(companyLeadRef);
-
-                console.log(`Converted lead ${lead.id} to application.`);
-            } else {
-            */
             // NORMAL UPDATE
             if (!leadSnap.exists()) {
                 await setDoc(companyLeadRef, {
@@ -157,7 +138,7 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
             }
 
             await updateDoc(companyLeadRef, updateData);
-            // }
+
 
             // --- Activity Logging (Always Log) ---
             // If converted, log to NEW application. Else log to lead.
