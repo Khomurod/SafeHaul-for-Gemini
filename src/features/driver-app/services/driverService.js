@@ -1,6 +1,7 @@
 import {
     doc,
     updateDoc,
+    setDoc,
     getDoc,
     getDocs,
     collection,
@@ -10,7 +11,8 @@ import {
     serverTimestamp,
     collectionGroup
 } from "firebase/firestore";
-import { db } from '@lib/firebase';
+import { db, storage } from '@lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // --- Offer Logic ---
 export async function respondToOffer(companyId, applicationId, response, signatureData = null) {
@@ -185,4 +187,56 @@ export async function getSavedJobs(driverId) {
         console.error("Error fetching saved jobs:", e);
         return [];
     }
+}
+
+// --- Application Logic ---
+export async function uploadApplicationFile(companyId, userId, fieldName, file) {
+    if (!file) return null;
+    const basePath = companyId
+        ? `companies/${companyId}/applications/${userId}`
+        : `global_leads/${userId}`;
+
+    const storagePath = `${basePath}/${fieldName}/${Date.now()}_${file.name}`;
+    const fileRef = ref(storage, storagePath);
+
+    await uploadBytes(fileRef, file);
+    const downloadURL = await getDownloadURL(fileRef);
+
+    return {
+        name: file.name,
+        url: downloadURL,
+        storagePath: storagePath
+    };
+}
+
+export async function submitDriverApplication(currentUser, formData, activeCompanyId, job) {
+    const timestamp = serverTimestamp();
+
+    // Prepare Payload
+    const finalData = {
+        ...formData,
+        signature: formData.signature,
+        signatureType: formData.signatureType || 'drawn',
+        userId: currentUser.uid,
+        driverId: currentUser.uid,
+        status: 'New Application',
+        submittedAt: timestamp,
+        createdAt: timestamp,
+        sourceType: activeCompanyId ? 'Company App' : 'Global Pool',
+        companyId: activeCompanyId || 'general-leads',
+        // --- NEW: Job specific data ---
+        jobId: job?.id || null,
+        jobTitle: job?.title || null
+    };
+
+    // Determine Destination
+    let docRef;
+    if (activeCompanyId) {
+        docRef = doc(db, "companies", activeCompanyId, "applications", currentUser.uid);
+    } else {
+        docRef = doc(db, "leads", currentUser.uid);
+    }
+
+    await setDoc(docRef, finalData);
+    return true;
 }

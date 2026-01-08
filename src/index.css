@@ -14,37 +14,26 @@
 
 /* --- DRIVER APP STYLES --- */
 
-/* Scrolling Agreement Box */
-.agreement-box {
-    max-height: 24rem; /* 384px */
-    overflow-y: auto;
-    border-radius: 0.5rem;
-    border: 1px solid #e5e7eb;
-    padding: 1rem;
-    background-color: #ffffff;
-}
+@layer components {
+  /* Scrolling Agreement Box */
+  .agreement-box {
+      @apply max-h-96 overflow-y-auto rounded-lg border border-gray-200 p-4 bg-white;
+  }
 
-/* Typography for Legal Text */
-.prose-sm {
-    font-size: 0.875rem;
-    line-height: 1.5;
-    color: #4b5563;
-}
-.prose-sm h4 {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #1f2937;
-    margin-top: 1rem;
-    margin-bottom: 0.5rem;
-}
-.prose-sm ul {
-    padding-left: 1.5rem;
-    list-style-type: disc;
-    margin-bottom: 1rem;
-}
-.prose-sm ul li {
-    margin-bottom: 0.25rem;
-}
-.prose-sm p {
-    margin-bottom: 1rem;
+  /* Typography for Legal Text */
+  .prose-sm {
+      @apply text-sm leading-normal text-gray-600;
+  }
+  .prose-sm h4 {
+      @apply text-base font-semibold text-gray-800 mt-4 mb-2;
+  }
+  .prose-sm ul {
+      @apply pl-6 list-disc mb-4;
+  }
+  .prose-sm ul li {
+      @apply mb-1;
+  }
+  .prose-sm p {
+      @apply mb-4;
+  }
 }

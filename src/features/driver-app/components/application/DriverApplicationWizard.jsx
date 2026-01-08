@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useData } from '@/context/DataContext';
 import { db, storage } from '@lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadApplicationFile, submitDriverApplication } from '../../services/driverService';
 import Stepper from '@shared/components/layout/Stepper';
 import { Loader2, X } from 'lucide-react';
 import { useToast } from '@shared/components/feedback/ToastProvider';
@@ -23,10 +23,10 @@ export function DriverApplicationWizard({ isOpen, onClose, onSuccess, job, compa
 
   // 1. Resolve Target Company
   useEffect(() => {
-    if (companyId) {
-      setTargetCompanyId(companyId);
-    } else if (paramCompanyId) {
+    if (paramCompanyId) {
       setTargetCompanyId(paramCompanyId);
+    } else if (companyId) {
+      setTargetCompanyId(companyId);
     } else {
       const pending = sessionStorage.getItem('pending_application_company');
       if (pending) setTargetCompanyId(pending);
@@ -97,21 +97,7 @@ export function DriverApplicationWizard({ isOpen, onClose, onSuccess, job, compa
     if (!file) return;
     setIsUploading(true);
     try {
-      const basePath = targetCompanyId
-        ? `companies/${targetCompanyId}/applications/${currentUser.uid}`
-        : `global_leads/${currentUser.uid}`;
-
-      const storagePath = `${basePath}/${fieldName}/${Date.now()}_${file.name}`;
-      const fileRef = ref(storage, storagePath);
-
-      await uploadBytes(fileRef, file);
-      const downloadURL = await getDownloadURL(fileRef);
-
-      const fileData = {
-        name: file.name,
-        url: downloadURL,
-        storagePath: storagePath
-      };
+      const fileData = await uploadApplicationFile(targetCompanyId, currentUser.uid, fieldName, file);
 
       handleUpdateFormData(fieldName, fileData);
       await saveDraft({ [fieldName]: fileData });
@@ -134,35 +120,8 @@ export function DriverApplicationWizard({ isOpen, onClose, onSuccess, job, compa
     }
 
     try {
-      const timestamp = serverTimestamp();
       const activeCompanyId = targetCompanyId;
-
-      // Prepare Payload
-      const finalData = {
-        ...formData,
-        signature: formData.signature,
-        signatureType: formData.signatureType || 'drawn',
-        userId: currentUser.uid,
-        driverId: currentUser.uid,
-        status: 'New Application',
-        submittedAt: timestamp,
-        createdAt: timestamp,
-        sourceType: activeCompanyId ? 'Company App' : 'Global Pool',
-        companyId: activeCompanyId || 'general-leads',
-        // --- NEW: Job specific data ---
-        jobId: job?.id || null,
-        jobTitle: job?.title || null
-      };
-
-      // Determine Destination
-      let docRef;
-      if (activeCompanyId) {
-        docRef = doc(db, "companies", activeCompanyId, "applications", currentUser.uid);
-      } else {
-        docRef = doc(db, "leads", currentUser.uid);
-      }
-
-      await setDoc(docRef, finalData);
+      await submitDriverApplication(currentUser, formData, activeCompanyId, job);
 
       // Clear Draft
       const draftRef = doc(db, 'drivers', currentUser.uid, 'drafts', 'application');

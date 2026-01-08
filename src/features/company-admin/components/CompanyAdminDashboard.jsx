@@ -228,23 +228,24 @@ export function CompanyAdminDashboard() {
                     {/* Mobile View Toggle - Hidden on MD+ */}
                     <div className="md:hidden mb-4 shrink-0">
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5 px-1">Current View</label>
-                        <div className="relative">
-                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                {getActiveIcon()}
-                            </div>
-                            <select
-                                value={dashboard.activeTab}
-                                onChange={(e) => dashboard.setActiveTab(e.target.value)}
-                                className="w-full pl-10 pr-10 py-3 bg-white border border-gray-300 rounded-xl shadow-sm appearance-none font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 outline-none transition-shadow"
-                            >
-                                <option value="applications">Applications ({dashboard.counts?.applications || 0})</option>
-                                <option value="find_driver">SafeHaul Leads ({dashboard.counts?.platformLeads || 0})</option>
-                                <option value="company_leads">Company Leads ({dashboard.counts?.companyLeads || 0})</option>
-                                <option value="my_leads">My Leads ({dashboard.counts?.myLeads || 0})</option>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-500">
-                                <ChevronDown size={16} />
-                            </div>
+                        <div className="flex overflow-x-auto gap-2 p-1 no-scrollbar">
+                            {[
+                                { id: 'applications', label: 'Applications', count: dashboard.counts?.applications },
+                                { id: 'find_driver', label: 'SafeHaul Leads', count: dashboard.counts?.platformLeads },
+                                { id: 'company_leads', label: 'Company Leads', count: dashboard.counts?.companyLeads },
+                                { id: 'my_leads', label: 'My Leads', count: dashboard.counts?.myLeads }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => dashboard.setActiveTab(tab.id)}
+                                    className={`whitespace-nowrap px-4 py-2 rounded-lg font-bold text-sm transition-colors border ${dashboard.activeTab === tab.id
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-md'
+                                            : 'bg-white text-gray-600 border-gray-200'
+                                        }`}
+                                >
+                                    {tab.label} ({tab.count || 0})
+                                </button>
+                            ))}
                         </div>
                     </div>
 
