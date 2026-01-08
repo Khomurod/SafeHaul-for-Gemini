@@ -2,25 +2,38 @@ import React, { useState } from 'react';
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '@lib/firebase';
 import { useToast } from '@shared/components/feedback/ToastProvider';
-import { Lock, Save, Send, Database, Key } from 'lucide-react';
+import { Lock, Save, Send, Database, Key, Phone, Server } from 'lucide-react';
 
 export function IntegrationManager({ companyId }) {
     const { showSuccess, showError } = useToast();
     const [provider, setProvider] = useState('ringcentral');
-    const [config, setConfig] = useState({});
+    
+    // Default config state
+    const [config, setConfig] = useState({
+        isSandbox: true // Default to true for safety
+    });
+    
     const [testPhone, setTestPhone] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isTesting, setIsTesting] = useState(false);
 
-    // Helpers
     const updateConfig = (key, val) => setConfig(prev => ({ ...prev, [key]: val }));
 
     const handleSave = async (e) => {
         e.preventDefault();
         setIsLoading(true);
+
+        // Prepare payload with correct server URL for RingCentral
+        const payloadConfig = { ...config };
+        if (provider === 'ringcentral') {
+            payloadConfig.serverUrl = config.isSandbox 
+                ? 'https://platform.devtest.ringcentral.com' 
+                : 'https://platform.ringcentral.com';
+        }
+
         try {
             const saveFn = httpsCallable(functions, 'saveIntegrationConfig');
-            await saveFn({ companyId, provider, config });
+            await saveFn({ companyId, provider, config: payloadConfig });
             showSuccess("Integration saved successfully (Encrypted).");
         } catch (error) {
             console.error(error);
@@ -88,6 +101,35 @@ export function IntegrationManager({ companyId }) {
                 <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 space-y-4">
                     {provider === 'ringcentral' && (
                         <>
+                            <div className="flex items-center gap-2 mb-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                <Server size={14} />
+                                <label className="font-bold flex items-center gap-2 cursor-pointer select-none">
+                                    <input 
+                                        type="checkbox" 
+                                        checked={config.isSandbox || false} 
+                                        onChange={(e) => updateConfig('isSandbox', e.target.checked)}
+                                        className="rounded text-blue-600 focus:ring-blue-500"
+                                    />
+                                    Use Sandbox Environment (DevTest)
+                                </label>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Sender Phone Number</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        className="w-full p-2 pl-10 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                                        value={config.phoneNumber || ''}
+                                        onChange={e => updateConfig('phoneNumber', e.target.value)}
+                                        placeholder="+1 (555) 123-4567"
+                                        required
+                                    />
+                                    <Phone size={16} className="absolute left-3 top-2.5 text-gray-400" />
+                                </div>
+                                <p className="text-[10px] text-gray-400 mt-1">Must match the number in your RingCentral Developer Console.</p>
+                            </div>
+
                             <div>
                                 <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Client ID</label>
                                 <input
