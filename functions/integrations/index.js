@@ -160,30 +160,61 @@ exports.testLineConnection = onCall({ cors: true }, async (request) => {
         const phoneResp = await rcsdk.get('/restapi/v1.0/account/~/extension/~/phone-number');
         const phoneData = await phoneResp.json();
 
-        const availableNumbers = (phoneData.records || [])
-            .filter(r => r.phoneNumber)
-            .map(r => ({
-                phoneNumber: r.phoneNumber,
-                usageType: r.usageType,
-                type: r.type
-            }));
+        return {
+            success: true,
+            message: `Connected as ${extData.contact?.firstName} ${extData.contact?.lastName}`,
+            accountId: accountData.id,
+            extensionName: extData.contact?.firstName + ' ' + extData.contact?.lastName,
+            availableNumbers: phoneData.records || []
+        };
+    } catch (error) {
+        console.error("RC Connection Test Failed:", error.message);
+        throw new HttpsError('failed-precondition', `Connection Failed: ${error.message}`);
+    }
+});
+
+// --- 2.6 Verify Existing Line Connection (For Company Admins) ---
+exports.verifyLineConnection = onCall({ cors: true }, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be logged in.');
+    }
+
+    const { companyId, phoneNumber } = request.data;
+    if (!companyId || !phoneNumber) {
+        throw new HttpsError('invalid-argument', 'Company ID and Phone Number are required.');
+    }
+
+    // Check Permissions (Aligned with companyAdmin.js)
+    const db = admin.firestore();
+    const membershipRef = db.collection('memberships')
+        .where('userId', '==', request.auth.uid)
+        .where('companyId', '==', companyId);
+
+    const membershipSnap = await membershipRef.get();
+    const isSuperAdmin = request.auth.token.role === 'super_admin';
+    const isCompanyAdmin = !membershipSnap.empty && membershipSnap.docs[0].data().role === 'company_admin';
+
+    if (!isSuperAdmin && !isCompanyAdmin) {
+        throw new HttpsError('permission-denied', 'Only Company Admins can verify connections.');
+    }
+
+    try {
+        const SMSAdapterFactory = require('./factory');
+        const adapter = await SMSAdapterFactory.getAdapter(companyId, phoneNumber);
+
+        // Simple light-weight check: Fetch own extension info
+        const resp = await adapter.rc.get('/restapi/v1.0/account/~/extension/~');
+        const data = await resp.json();
 
         return {
             success: true,
-            accountId: accountData.id,
-            mainNumber: accountData.mainNumber,
-            extensionName: `${extData.contact?.firstName || ''} ${extData.contact?.lastName || ''}`.trim() || extData.name,
-            extensionNumber: extData.extensionNumber,
-            availableNumbers: availableNumbers,
-            message: `Connected! Account: ${accountData.id}, Extension: ${extData.extensionNumber}`
+            identity: `${data.contact?.firstName} ${data.contact?.lastName}`,
+            extension: data.extensionNumber,
+            timestamp: new Date().toISOString()
         };
-
     } catch (error) {
-        console.error("RC Connection Test Failed:", error.message);
-
-        // Extract detailed error if available
-        const errorDetails = error.response?.data?.message || error.message;
-        throw new HttpsError('failed-precondition', `Connection Failed: ${errorDetails}`);
+        console.error(`Verification Failed for ${phoneNumber}:`, error.message);
+        throw new HttpsError('failed-precondition', `Verification failed: ${error.message}`);
     }
 });
 
@@ -460,7 +491,8 @@ exports.addPhoneLine = onCall({ cors: true }, async (request) => {
             label: label || sanitizedPhone,
             status: 'active',
             usageType: 'DirectNumber',
-            addedAt: new Date().toISOString()
+            addedAt: new Date().toISOString(),
+            hasDedicatedCredentials: !!(clientId && clientSecret)
         });
 
         // 5. Update provider doc with inventory (and shared credentials if provided)
