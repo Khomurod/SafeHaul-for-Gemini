@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '@/context/DataContext';
 import { doc, onSnapshot, updateDoc, collection, getDocs, query, where, documentId } from 'firebase/firestore';
-import { db } from '@lib/firebase';
-import { Phone, Users as UsersIcon, Check, AlertCircle, Save, RefreshCw, Beaker } from 'lucide-react';
+import { db, functions } from '@lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { Phone, Users as UsersIcon, Check, AlertCircle, Save, RefreshCw, Beaker, ShieldCheck, ShieldAlert, Activity, Wifi, WifiOff } from 'lucide-react';
 import { useToast } from '@shared/components/feedback/ToastProvider';
 import { SMSDiagnosticModal } from './SMSDiagnosticModal';
 
@@ -12,6 +13,10 @@ export function NumberAssignmentManager({ companyId }) {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+
+    // Connection verification state
+    const [verifyingLine, setVerifyingLine] = useState(null); // phoneNumber
+    const [lineStatuses, setLineStatuses] = useState({}); // { phoneNumber: { success: bool, timestamp, identity } }
 
     // Local state for edits before save
     const [assignments, setAssignments] = useState({});
@@ -57,7 +62,7 @@ export function NumberAssignmentManager({ companyId }) {
                     return;
                 }
 
-                // Firestore 'in' queries are limited to 30 items
+                // Batch fetch users
                 const batchSize = 30;
                 const fetchedUsers = [];
 
@@ -87,6 +92,39 @@ export function NumberAssignmentManager({ companyId }) {
 
         return () => unsub();
     }, [companyId]);
+
+    const handleVerifyLine = async (phoneNumber) => {
+        if (!phoneNumber) return;
+        setVerifyingLine(phoneNumber);
+
+        try {
+            const verifyFn = httpsCallable(functions, 'verifyLineConnection');
+            const result = await verifyFn({ companyId, phoneNumber });
+
+            setLineStatuses(prev => ({
+                ...prev,
+                [phoneNumber]: {
+                    success: true,
+                    identity: result.data.identity,
+                    timestamp: result.data.timestamp
+                }
+            }));
+            showSuccess(`Line ${phoneNumber} is active (${result.data.identity})`);
+        } catch (error) {
+            console.error(`Verification Failed: ${phoneNumber}`, error);
+            setLineStatuses(prev => ({
+                ...prev,
+                [phoneNumber]: {
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                }
+            }));
+            showError(`Line ${phoneNumber} connection failed: ${error.message}`);
+        } finally {
+            setVerifyingLine(null);
+        }
+    };
 
     const handleSave = async () => {
         setSaving(true);
@@ -151,7 +189,7 @@ export function NumberAssignmentManager({ companyId }) {
                         className="px-3 py-2 text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 flex items-center gap-2 text-sm font-medium transition-colors"
                     >
                         <Beaker size={16} />
-                        Test Lines
+                        Diagnostic Lab
                     </button>
                     {/* Save Button */}
                     <button
@@ -167,17 +205,21 @@ export function NumberAssignmentManager({ companyId }) {
 
             {/* Default Number Section */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <Check className="text-green-500" size={18} /> Company Default Line
-                </h3>
-                <p className="text-xs text-gray-500 mb-4">
-                    This number will be used for automated system messages and for users who don't have a personal line assigned.
-                </p>
-                <div className="max-w-md">
+                <div className="flex justify-between items-start mb-4">
+                    <div>
+                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                            <Check className="text-green-500" size={18} /> Company Default Line
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Used for automated system messages and unassigned recruiters.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex gap-3 max-w-lg">
                     <select
                         value={defaultNumber}
                         onChange={(e) => setDefaultNumber(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono"
+                        className="flex-1 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono text-sm"
                     >
                         <option value="">-- Select Default Number --</option>
                         {inventory.map(num => (
@@ -186,7 +228,41 @@ export function NumberAssignmentManager({ companyId }) {
                             </option>
                         ))}
                     </select>
+                    {defaultNumber && (
+                        <button
+                            onClick={() => handleVerifyLine(defaultNumber)}
+                            disabled={verifyingLine === defaultNumber}
+                            className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            title="Verify Connectivity"
+                        >
+                            {verifyingLine === defaultNumber ? (
+                                <RefreshCw size={16} className="animate-spin" />
+                            ) : lineStatuses[defaultNumber]?.success ? (
+                                <Wifi size={16} className="text-green-500" />
+                            ) : lineStatuses[defaultNumber]?.success === false ? (
+                                <WifiOff size={16} className="text-red-500" />
+                            ) : (
+                                <Activity size={16} />
+                            )}
+                        </button>
+                    )}
                 </div>
+                {lineStatuses[defaultNumber] && (
+                    <div className={`mt-3 p-2 rounded text-[10px] flex items-center gap-2 ${lineStatuses[defaultNumber].success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                        }`}>
+                        {lineStatuses[defaultNumber].success ? (
+                            <>
+                                <ShieldCheck size={12} />
+                                Verified: {lineStatuses[defaultNumber].identity}
+                            </>
+                        ) : (
+                            <>
+                                <ShieldAlert size={12} />
+                                Error: {lineStatuses[defaultNumber].error}
+                            </>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* Assignment Matrix */}
@@ -204,17 +280,20 @@ export function NumberAssignmentManager({ companyId }) {
                             <th className="px-6 py-3 border-b border-gray-100">Team Member</th>
                             <th className="px-6 py-3 border-b border-gray-100">Role</th>
                             <th className="px-6 py-3 border-b border-gray-100">Assigned Number</th>
-                            <th className="px-6 py-3 border-b border-gray-100 w-10">Status</th>
+                            <th className="px-6 py-3 border-b border-gray-100">Connection</th>
+                            <th className="px-6 py-3 border-b border-gray-100 w-10 text-center">Status</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                         {users.map(user => {
                             const currentPhone = assignments[user.id] || '';
                             const isAssigned = !!currentPhone;
+                            const invItem = inventory.find(i => i.phoneNumber === currentPhone);
+                            const hasDedicated = invItem?.hasDedicatedCredentials;
 
                             return (
                                 <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
+                                    <td className="px-6 py-4 text-sm font-medium text-gray-900 border-r border-gray-50">
                                         {user.name || user.fullName || user.email}
                                         <div className="text-xs text-gray-400 font-normal">{user.email}</div>
                                     </td>
@@ -222,23 +301,57 @@ export function NumberAssignmentManager({ companyId }) {
                                         {user.role?.replace('_', ' ')}
                                     </td>
                                     <td className="px-6 py-4">
-                                        <select
-                                            value={currentPhone}
-                                            onChange={(e) => setAssignments(prev => ({ ...prev, [user.id]: e.target.value }))}
-                                            className={`w-full p-2 border rounded text-sm outline-none transition-all ${isAssigned ? 'border-purple-200 bg-purple-50 text-purple-700 font-mono' : 'border-gray-200 text-gray-400'
-                                                }`}
-                                        >
-                                            <option value="">No Direct Line</option>
-                                            {inventory.map(num => (
-                                                <option key={num.phoneNumber} value={num.phoneNumber}>
-                                                    {num.phoneNumber}
-                                                </option>
-                                            ))}
-                                        </select>
+                                        <div className="flex flex-col gap-1">
+                                            <select
+                                                value={currentPhone}
+                                                onChange={(e) => setAssignments(prev => ({ ...prev, [user.id]: e.target.value }))}
+                                                className={`w-full p-2 border rounded text-sm outline-none transition-all ${isAssigned ? 'border-purple-200 bg-purple-50 text-purple-700 font-mono' : 'border-gray-200 text-gray-400'
+                                                    }`}
+                                            >
+                                                <option value="">No Direct Line</option>
+                                                {inventory.map(num => (
+                                                    <option key={num.phoneNumber} value={num.phoneNumber}>
+                                                        {num.phoneNumber}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {isAssigned && hasDedicated && (
+                                                <div className="flex items-center gap-1 text-[9px] text-blue-600 font-bold uppercase tracking-tighter">
+                                                    <ShieldCheck size={10} /> Dedicated Credentials
+                                                </div>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                        {isAssigned ? (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => handleVerifyLine(currentPhone)}
+                                                    disabled={verifyingLine === currentPhone}
+                                                    className="p-1.5 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
+                                                    title="Verify Connection"
+                                                >
+                                                    {verifyingLine === currentPhone ? (
+                                                        <RefreshCw size={14} className="animate-spin text-gray-400" />
+                                                    ) : (
+                                                        <Activity size={14} className={lineStatuses[currentPhone] ? 'text-blue-500' : 'text-gray-400'} />
+                                                    )}
+                                                </button>
+                                                {lineStatuses[currentPhone] && (
+                                                    <span className={`text-[10px] font-medium ${lineStatuses[currentPhone].success ? 'text-green-600' : 'text-red-600'
+                                                        }`}>
+                                                        {lineStatuses[currentPhone].success ? 'Connected' : 'Failed'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-gray-300">-</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 text-center">
                                         {isAssigned ? (
-                                            <div className="w-2 h-2 rounded-full bg-green-500 mx-auto" title="Active"></div>
+                                            <div className={`w-2 h-2 rounded-full mx-auto ${lineStatuses[currentPhone]?.success === false ? 'bg-red-500' : 'bg-green-500'
+                                                }`} title={lineStatuses[currentPhone]?.success === false ? 'Connection Error' : 'Active'}></div>
                                         ) : (
                                             <div className="w-2 h-2 rounded-full bg-gray-200 mx-auto" title="No Assignment"></div>
                                         )}
@@ -264,3 +377,4 @@ export function NumberAssignmentManager({ companyId }) {
         </div>
     );
 }
+
