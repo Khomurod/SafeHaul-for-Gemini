@@ -57,130 +57,173 @@ export function useSuperAdminData() {
         setStatsError({ companies: false, users: false, apps: false });
         console.log("🚀 Fetching initial dashboard data (Paginated)...");
 
+        // Helper to safely fetch with logging
+        const safeFetch = async (promise, label, fallback = []) => {
+            try {
+                const res = await promise;
+                return { success: true, data: res };
+            } catch (err) {
+                console.error(`❌ Error fetching ${label}:`, err);
+                return { success: false, error: err, data: fallback };
+            }
+        };
+
         try {
-            // A. Fetch Recent Companies (Limit 20)
+            // A. Prepare Queries
             const companiesQuery = query(collection(db, "companies"), orderBy('createdAt', 'desc'), limit(20));
-            const companiesPromise = getDocs(companiesQuery);
-
-            // B. Fetch Recent Users (Limit 50 - users usually smaller set or less critical to paginate immediately)
-            const usersPromise = getDocs(query(collection(db, "users"), orderBy('createdAt', 'desc'), limit(50)));
-
-            // C. Fetch Recent Activity (Leads + Apps mixed)
+            const usersQuery = query(collection(db, "users"), orderBy('createdAt', 'desc'), limit(50));
             const leadsQuery = query(collectionGroup(db, 'leads'), orderBy('createdAt', 'desc'), limit(15));
             const appsQuery = query(collectionGroup(db, 'applications'), orderBy('createdAt', 'desc'), limit(15));
-            const leadsPromise = getDocs(leadsQuery);
-            const appsPromise = getDocs(appsQuery);
 
-            // D. Fetch REAL Total Counts (Server-Side Aggregation)
-            const countCompaniesPromise = getCountFromServer(collection(db, "companies"));
-            const countUsersPromise = getCountFromServer(collection(db, "users"));
-            const countLeadsPromise = getCountFromServer(collectionGroup(db, "leads"));
-
+            // B. Execute Fetches Independently (Parallel)
             const [
-                compSnap, userSnap, leadsSnap, appsSnap,
-                totalComp, totalUser, totalLeads
+                compResult,
+                userResult,
+                leadsResult,
+                appsResult,
+                countCompResult,
+                countUserResult,
+                countLeadsResult
             ] = await Promise.all([
-                companiesPromise, usersPromise, leadsPromise, appsPromise,
-                countCompaniesPromise, countUsersPromise, countLeadsPromise
+                safeFetch(getDocs(companiesQuery), "Companies"),
+                safeFetch(getDocs(usersQuery), "Users"),
+                safeFetch(getDocs(leadsQuery), "Leads"),
+                safeFetch(getDocs(appsQuery), "Applications"),
+                safeFetch(getCountFromServer(collection(db, "companies")), "Count Companies", { data: () => ({ count: 0 }) }),
+                safeFetch(getCountFromServer(collection(db, "users")), "Count Users", { data: () => ({ count: 0 }) }),
+                safeFetch(getCountFromServer(collectionGroup(db, "leads")), "Count Leads", { data: () => ({ count: 0 }) })
             ]);
 
-            // Cursors for pagination
-            setLastCompanyDoc(compSnap.docs[compSnap.docs.length - 1]);
-            setLastAppDoc(appsSnap.docs[appsSnap.docs.length - 1]);
-            setLastLeadDoc(leadsSnap.docs[leadsSnap.docs.length - 1]);
-
-            setHasMoreCompanies(compSnap.docs.length === 20);
-            setHasMoreApps(appsSnap.docs.length === 15 || leadsSnap.docs.length === 15);
-
-            // --- Process Companies ---
-            const companies = [];
-            const compMap = new Map();
-            compMap.set('general-leads', 'SafeHaul Pool (Unassigned)');
-
-            compSnap.forEach((doc) => {
-                const data = doc.data();
-                companies.push({ id: doc.id, ...data });
-                compMap.set(doc.id, data.companyName);
+            // C. Handle Errors Flags
+            setStatsError({
+                companies: !compResult.success,
+                users: !userResult.success,
+                apps: !leadsResult.success && !appsResult.success
             });
 
-            // --- Process Users & Fetch Memberships ---
-            const initialUsers = userSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // D. Process Companies
+            if (compResult.success) {
+                const companies = [];
+                const compMap = new Map();
+                compMap.set('general-leads', 'SafeHaul Pool (Unassigned)');
 
-            // Fetch Memberships for these users (Chunked to 10 for 'in' query)
-            const userIds = initialUsers.map(u => u.id);
-            const membershipMap = new Map(); // userId -> [memberships]
+                compResult.data.forEach((doc) => {
+                    const data = doc.data();
+                    companies.push({ id: doc.id, ...data });
+                    compMap.set(doc.id, data.companyName);
+                });
 
-            if (userIds.length > 0) {
-                const chunks = [];
-                for (let i = 0; i < userIds.length; i += 10) {
-                    chunks.push(userIds.slice(i, i + 10));
-                }
-
-                await Promise.all(chunks.map(async (chunk) => {
-                    const q = query(collection(db, "memberships"), where("userId", "in", chunk));
-                    const snap = await getDocs(q);
-                    snap.forEach(doc => {
-                        const m = doc.data();
-                        const current = membershipMap.get(m.userId) || [];
-                        current.push(m);
-                        membershipMap.set(m.userId, current);
-                    });
-                }));
+                setCompanyList(companies);
+                setAllCompaniesMap(compMap);
+                setLastCompanyDoc(compResult.data.docs[compResult.data.docs.length - 1]);
+                setHasMoreCompanies(compResult.data.docs.length === 20);
             }
 
-            const users = initialUsers.map(user => ({
-                ...user,
-                memberships: membershipMap.get(user.id) || []
-            }));
+            // E. Process Users
+            if (userResult.success) {
+                const initialUsers = userResult.data.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-            // --- Process Unified Activity (Apps + Leads) ---
-            const processedLeads = leadsSnap.docs.map(doc => {
-                const data = doc.data();
-                const parentCollection = doc.ref.parent;
-                const parentDoc = parentCollection.parent;
-                const companyId = parentDoc ? parentDoc.id : 'general-leads';
-                return {
-                    id: doc.id,
-                    ...data,
-                    companyId,
-                    status: data.status || 'New Lead',
-                    sourceType: data.isPlatformLead ? 'Distributed Lead' : 'Direct Lead'
-                };
-            });
+                // Fetch Memberships (Nested Safety)
+                const userIds = initialUsers.map(u => u.id);
+                const membershipMap = new Map();
 
-            const processedApps = appsSnap.docs.map(doc => {
-                const data = doc.data();
-                const parent = doc.ref.parent.parent;
-                const companyId = parent ? parent.id : (data.companyId || 'unknown');
-                return {
-                    id: doc.id,
-                    ...data,
-                    companyId,
-                    status: data.status || 'New Application',
-                    sourceType: 'Company App'
-                };
-            });
+                if (userIds.length > 0) {
+                    try {
+                        const chunks = [];
+                        for (let i = 0; i < userIds.length; i += 10) {
+                            chunks.push(userIds.slice(i, i + 10));
+                        }
 
-            // Merge and Sort Recent Activity
-            const combinedActivity = [...processedLeads, ...processedApps].sort((a, b) => {
+                        await Promise.all(chunks.map(async (chunk) => {
+                            const q = query(collection(db, "memberships"), where("userId", "in", chunk));
+                            const snap = await getDocs(q);
+                            snap.forEach(doc => {
+                                const m = doc.data();
+                                const current = membershipMap.get(m.userId) || [];
+                                current.push(m);
+                                membershipMap.set(m.userId, current);
+                            });
+                        }));
+                    } catch (memErr) {
+                        console.error("⚠️ Error fetching memberships:", memErr);
+                    }
+                }
+
+                const users = initialUsers.map(user => ({
+                    ...user,
+                    memberships: membershipMap.get(user.id) || []
+                }));
+                setUserList(users);
+            }
+
+            // F. Process Unified Activity
+            let combinedActivity = [];
+
+            if (leadsResult.success) {
+                const processedLeads = leadsResult.data.docs.map(doc => {
+                    const data = doc.data();
+                    // Handle potential permission errors accessing parent details safely
+                    let companyId = 'general-leads';
+                    try {
+                        const parentCollection = doc.ref.parent;
+                        const parentDoc = parentCollection.parent;
+                        if (parentDoc) companyId = parentDoc.id;
+                    } catch (e) { /* ignore ref errors */ }
+
+                    return {
+                        id: doc.id,
+                        ...data,
+                        companyId,
+                        status: data.status || 'New Lead',
+                        sourceType: data.isPlatformLead ? 'Distributed Lead' : 'Direct Lead'
+                    };
+                });
+                combinedActivity = [...combinedActivity, ...processedLeads];
+                setLastLeadDoc(leadsResult.data.docs[leadsResult.data.docs.length - 1]);
+            }
+
+            if (appsResult.success) {
+                const processedApps = appsResult.data.docs.map(doc => {
+                    const data = doc.data();
+                    let companyId = data.companyId || 'unknown';
+                    try {
+                        const parent = doc.ref.parent.parent;
+                        if (parent) companyId = parent.id;
+                    } catch (e) { /* ignore */ }
+
+                    return {
+                        id: doc.id,
+                        ...data,
+                        companyId,
+                        status: data.status || 'New Application',
+                        sourceType: 'Company App'
+                    };
+                });
+                combinedActivity = [...combinedActivity, ...processedApps];
+                setLastAppDoc(appsResult.data.docs[appsResult.data.docs.length - 1]);
+            }
+
+            // Sort Combined
+            combinedActivity.sort((a, b) => {
                 const tA = a.createdAt?.seconds || 0;
                 const tB = b.createdAt?.seconds || 0;
                 return tB - tA;
             });
 
-            setCompanyList(companies);
-            setAllCompaniesMap(compMap);
-            setUserList(users);
             setAllApplications(combinedActivity);
+            setHasMoreApps((leadsResult.success && leadsResult.data.docs.length === 15) ||
+                (appsResult.success && appsResult.data.docs.length === 15));
 
+
+            // G. Update Counts
             setStats({
-                companyCount: totalComp.data().count,
-                userCount: totalUser.data().count,
-                appCount: totalLeads.data().count // Using leads count as primary metric
+                companyCount: countCompResult.success ? countCompResult.data.data().count : 0,
+                userCount: countUserResult.success ? countUserResult.data.data().count : 0,
+                appCount: countLeadsResult.success ? countLeadsResult.data.data().count : 0
             });
 
         } catch (e) {
-            console.error("Error loading recent data:", e);
+            console.error("🔥 Fatal Error loading recent data:", e);
             setStatsError({ companies: true, users: true, apps: true });
             showError("Failed to load dashboard data.");
         } finally {

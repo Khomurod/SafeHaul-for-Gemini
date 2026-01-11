@@ -108,4 +108,15 @@ creds.json
 *.key
 google-services.json
 GoogleService-Info.plist
+.env
+.env.local
+.env.*.local
+
+# ===========================================
+# PLAYWRIGHT
+# ===========================================
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
 
