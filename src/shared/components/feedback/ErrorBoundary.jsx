@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import * as Sentry from "@sentry/react";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -13,6 +14,10 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("Uncaught Error:", error, errorInfo);
+
+    // Report error to Sentry
+    Sentry.captureException(error, { extra: errorInfo });
+
     this.setState({ errorInfo });
   }
 
@@ -38,7 +43,7 @@ class ErrorBoundary extends React.Component {
             <div className="p-6 text-center space-y-4">
               <h2 className="text-2xl font-bold text-gray-800">Something went wrong</h2>
               <p className="text-gray-600 text-sm">
-                We encountered an unexpected error. Our team has been notified. 
+                We encountered an unexpected error. Our team has been notified.
                 Please try reloading the page.
               </p>
 
@@ -49,13 +54,13 @@ class ErrorBoundary extends React.Component {
               )}
 
               <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                <button 
+                <button
                   onClick={this.handleReload}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all shadow-sm"
                 >
                   <RefreshCw size={18} /> Reload Page
                 </button>
-                <button 
+                <button
                   onClick={this.handleGoHome}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg font-semibold transition-all"
                 >

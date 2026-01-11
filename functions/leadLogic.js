@@ -1,9 +1,16 @@
 // functions/leadLogic.js
 const { admin, db, auth } = require("./firebaseAdmin");
+const { CloudTasksClient } = require("@google-cloud/tasks");
 
-// --- CONSTANTS (PRESERVED) ---
-const QUOTA_FREE = 50;
-const QUOTA_PAID = 200;
+// --- CLOUD TASKS CONFIG ---
+const PROJECT_ID = "truckerapp-system";
+const LOCATION = "us-central1";
+const QUEUE_NAME = "lead-distribution-queue";
+const tasksClient = new CloudTasksClient();
+
+// --- CONSTANTS (PRESERVED - defaults, can be overridden by system_settings) ---
+let QUOTA_FREE = 50;
+let QUOTA_PAID = 200;
 const EXPIRY_SHORT_MS = 24 * 60 * 60 * 1000; // 24 Hours
 const EXPIRY_LONG_MS = 7 * 24 * 60 * 60 * 1000; // 7 Days
 const POOL_COOL_OFF_DAYS = 7;
@@ -17,34 +24,95 @@ const TERMINAL_STATUSES = [
     "Wrong Number", "Not Interested", "Rejected", "Disqualified", "Hired Elsewhere"
 ];
 
-// --- 1. THE DEALER ENGINE V3 ---
+// --- HELPER: Fetch System Settings from Firestore ---
+async function getSystemSettings() {
+    try {
+        const settingsSnap = await db.collection("system_settings").doc("distribution").get();
+        if (settingsSnap.exists) {
+            const data = settingsSnap.data();
+            return {
+                quotaPaid: data.quota_paid || 200,
+                quotaFree: data.quota_free || 50,
+                maintenanceMode: data.maintenance_mode || false
+            };
+        }
+    } catch (e) {
+        console.warn("Could not fetch system_settings, using defaults:", e.message);
+    }
+    return { quotaPaid: 200, quotaFree: 50, maintenanceMode: false };
+}
+
+// --- 1. THE DEALER ENGINE V4 (Cloud Tasks Parallel) ---
 async function runLeadDistribution(forceRotate = false) {
-    console.log(`Starting 'THE DEALER' Engine V3 (Force Rotate: ${forceRotate})...`);
-    const logs = [];
+    console.log(`Starting 'THE DEALER' Engine V4 PARALLEL (Force Rotate: ${forceRotate})...`);
 
     try {
-        const companiesSnap = await db.collection("companies").where("isActive", "==", true).get();
-        if (companiesSnap.empty) return { success: false, message: "No active companies found." };
-
-        const companies = companiesSnap.docs.map(d => ({ id: d.id, ...d.data() }))
-            .sort(() => Math.random() - 0.5);
-
-        for (const company of companies) {
-            try {
-                const isPaid = company.planType?.toLowerCase() === 'paid';
-                let limit = isPaid ? QUOTA_PAID : QUOTA_FREE;
-
-                if (company.dailyLeadQuota && company.dailyLeadQuota > limit) {
-                    limit = company.dailyLeadQuota;
-                }
-
-                const result = await dealLeadsToCompany(company, limit, forceRotate);
-                logs.push(result);
-            } catch (err) {
-                logs.push(`${company.companyName}: ERROR - ${err.message}`);
-            }
+        // 1. Check for maintenance mode
+        const settings = await getSystemSettings();
+        if (settings.maintenanceMode) {
+            console.log("Maintenance mode is ON. Skipping distribution.");
+            return { success: false, message: "Maintenance mode is enabled." };
         }
-        return { success: true, message: "Dealer Run Complete", details: logs };
+
+        // Update quotas from settings
+        QUOTA_FREE = settings.quotaFree;
+        QUOTA_PAID = settings.quotaPaid;
+
+        // 2. Get all active companies
+        const companiesSnap = await db.collection("companies").where("isActive", "==", true).get();
+        if (companiesSnap.empty) {
+            return { success: false, message: "No active companies found." };
+        }
+
+        const companies = companiesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        console.log(`Found ${companies.length} active companies. Creating Cloud Tasks...`);
+
+        // 3. Create a Cloud Task for EACH company (parallel execution)
+        const queuePath = tasksClient.queuePath(PROJECT_ID, LOCATION, QUEUE_NAME);
+        const workerUrl = `https://${LOCATION}-${PROJECT_ID}.cloudfunctions.net/processCompanyDistribution`;
+
+        const taskPromises = companies.map(async (company) => {
+            const isPaid = company.planType?.toLowerCase() === 'paid';
+            let quota = isPaid ? QUOTA_PAID : QUOTA_FREE;
+            if (company.dailyLeadQuota && company.dailyLeadQuota > quota) {
+                quota = company.dailyLeadQuota;
+            }
+
+            const payload = {
+                companyId: company.id,
+                quotaOverride: quota,
+                forceRotate: forceRotate
+            };
+
+            const task = {
+                httpRequest: {
+                    httpMethod: "POST",
+                    url: workerUrl,
+                    headers: { "Content-Type": "application/json" },
+                    body: Buffer.from(JSON.stringify(payload)).toString("base64")
+                }
+            };
+
+            try {
+                const [response] = await tasksClient.createTask({ parent: queuePath, task });
+                return { company: company.companyName, taskName: response.name, status: "queued" };
+            } catch (err) {
+                console.error(`Failed to queue task for ${company.companyName}:`, err.message);
+                return { company: company.companyName, error: err.message, status: "failed" };
+            }
+        });
+
+        const results = await Promise.all(taskPromises);
+        const queued = results.filter(r => r.status === "queued").length;
+        const failed = results.filter(r => r.status === "failed").length;
+
+        console.log(`Cloud Tasks created: ${queued} queued, ${failed} failed`);
+        return {
+            success: true,
+            message: `Dealer V4 Complete: ${queued} tasks queued, ${failed} failed`,
+            details: results
+        };
+
     } catch (globalError) {
         console.error("FATAL DISTRIBUTION ERROR:", globalError);
         throw globalError;
@@ -363,9 +431,9 @@ async function harvestNotesBeforeDelete(docSnap, data) {
 
 module.exports = {
     runLeadDistribution,
+    dealLeadsToCompany,  // Exported for worker
     populateLeadsFromDrivers,
     runCleanup,
     processLeadOutcome,
     confirmDriverInterest,
-
 };

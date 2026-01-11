@@ -1,3 +1,11 @@
+const Sentry = require("@sentry/node");
+
+// Initialize Sentry ASAP (before any other code)
+Sentry.init({
+  dsn: "https://a65b9de0dd496035cfa65d0543f2c566@o4510692386799616.ingest.us.sentry.io/4510692400365568",
+  tracesSampleRate: 1.0,
+});
+
 const functions = require('firebase-functions/v1');
 const { onCall } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
@@ -110,3 +118,6 @@ exports.testLineConnection = smsIntegrations.testLineConnection; // NEW: Multi-T
 // 11. Stats Aggregation (Pre-computed daily stats for performance)
 exports.onActivityLogCreated = statsAggregator.onActivityLogCreated;
 exports.onLegacyActivityCreated = statsAggregator.onLegacyActivityCreated;
+
+// 12. Cloud Tasks Worker (Parallel Lead Distribution)
+exports.processCompanyDistribution = require('./workers/distributeWorker').processCompanyDistribution;

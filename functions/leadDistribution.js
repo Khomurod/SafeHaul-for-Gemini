@@ -3,6 +3,7 @@
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { admin, db } = require("./firebaseAdmin"); // <--- Added admin/db imports
+const Sentry = require("@sentry/node"); // <--- Sentry for error reporting
 const {
     runLeadDistribution,
     populateLeadsFromDrivers,
@@ -35,6 +36,7 @@ exports.planLeadDistribution = onSchedule({
         console.log("Planning result:", result);
     } catch (error) {
         console.error("Planning failed:", error);
+        Sentry.captureException(error); // Report to Sentry
     }
 });
 
@@ -51,6 +53,7 @@ exports.runLeadDistribution = onSchedule({
         console.log("Execution result:", result);
     } catch (error) {
         console.error("Execution failed:", error);
+        Sentry.captureException(error); // Report to Sentry
     }
 });
 
@@ -64,6 +67,7 @@ exports.distributeDailyLeads = onCall(RUNTIME_OPTS, async (request) => {
         const result = await runLeadDistribution(true);
         return result;
     } catch (error) {
+        Sentry.captureException(error); // Report to Sentry
         throw new HttpsError("internal", error.message);
     }
 });
@@ -77,6 +81,7 @@ exports.cleanupBadLeads = onCall(RUNTIME_OPTS, async (request) => {
         const result = await runCleanup();
         return result;
     } catch (error) {
+        Sentry.captureException(error); // Report to Sentry
         throw new HttpsError("internal", error.message);
     }
 });
@@ -96,6 +101,7 @@ exports.handleLeadOutcome = onCall(RUNTIME_OPTS, async (request) => {
         const result = await processLeadOutcome(request.data);
         return result;
     } catch (error) {
+        Sentry.captureException(error); // Report to Sentry
         return { success: false, error: error.message };
     }
 });
@@ -111,6 +117,7 @@ exports.aggregateAnalytics = onSchedule({
         await generateDailyAnalytics();
     } catch (error) {
         console.error("Analytics failed:", error);
+        Sentry.captureException(error); // Report to Sentry
     }
 });
 
@@ -121,6 +128,7 @@ exports.confirmDriverInterest = onCall(RUNTIME_OPTS, async (request) => {
         const result = await confirmDriverInterest(request.data);
         return result;
     } catch (error) {
+        Sentry.captureException(error); // Report to Sentry
         throw new HttpsError("internal", error.message);
     }
 });
