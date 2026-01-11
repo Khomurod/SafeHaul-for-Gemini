@@ -159,20 +159,22 @@ export function useSystemHealth() {
         };
 
         switch (stepId) {
-            case 'init':
+            case 'init': {
                 if (!navigator.onLine) throw new Error("No Internet Connection");
                 addLog("✅ Network Connection Verified.", "success");
                 break;
+            }
 
-            case 'storage_write':
+            case 'storage_write': {
                 const fileRefPath = `system_health_tests/SYS_TEST_${Date.now()}.txt`;
                 const storageRef = ref(storage, fileRefPath);
                 await uploadString(storageRef, "System Health Check - Write Test");
                 updateData({ fileRefPath });
                 addLog("✅ Storage Write Access Verified.", "success");
                 break;
+            }
 
-            case 'firestore_company':
+            case 'firestore_company': {
                 const testCompanyId = `SYS_TEST_${Date.now()}`;
                 await setDoc(doc(db, 'companies', testCompanyId), {
                     companyName: "Test Company A",
@@ -199,15 +201,17 @@ export function useSystemHealth() {
                 updateData({ companyId: testCompanyId, companyIdB: testCompanyIdB, driverId: testDriverId });
                 addLog(`✅ Test Companies & Driver Created.`, "success");
                 break;
+            }
 
-            case 'cloud_function':
+            case 'cloud_function': {
                 const migrateFn = httpsCallable(functions, 'runMigration');
                 const pingResult = await migrateFn({ mode: 'ping' });
                 if (!pingResult.data?.success) throw new Error("Cloud Function Ping Failed");
                 addLog("✅ Cloud Functions are Responding.", "success");
                 break;
+            }
 
-            case 'sim_driver_app':
+            case 'sim_driver_app': {
                 if (!currentData.companyId || !currentData.driverId) throw new Error("Missing IDs");
                 const appRef = doc(db, 'companies', currentData.companyId, 'applications', currentData.driverId);
                 await setDoc(appRef, {
@@ -221,8 +225,9 @@ export function useSystemHealth() {
                 });
                 addLog("✅ Driver Application Submitted via Slug.", "success");
                 break;
+            }
 
-            case 'sim_doc_upload':
+            case 'sim_doc_upload': {
                 const cdlPath = `companies/${currentData.companyId}/applications/${currentData.driverId}/cdl_front.txt`;
                 const cdlRef = ref(storage, cdlPath);
                 await uploadString(cdlRef, "FAKE CDL CONTENT");
@@ -235,8 +240,9 @@ export function useSystemHealth() {
 
                 addLog("✅ CDL Document Uploaded & Linked to Profile.", "success");
                 break;
+            }
 
-            case 'sim_signature':
+            case 'sim_signature': {
                 const appDocRef2 = doc(db, 'companies', currentData.companyId, 'applications', currentData.driverId);
                 await setDoc(appDocRef2, {
                     signature: {
@@ -248,8 +254,9 @@ export function useSystemHealth() {
                 }, { merge: true });
                 addLog("✅ E-Signature Successfully Captured.", "success");
                 break;
+            }
 
-            case 'test_user_access':
+            case 'test_user_access': {
                 const tempEmail = `systest_${Date.now()}@example.com`;
                 const tempPass = "Test1234!";
 
@@ -288,8 +295,9 @@ export function useSystemHealth() {
 
                 addLog("✅ User Access Cycle (Create -> Assign -> Reassign) Verified.", "success");
                 break;
+            }
 
-            case 'sim_recruiter_link':
+            case 'sim_recruiter_link': {
                 const recruiterId = `TEST_REC_${Date.now()}`;
                 const linkedAppRef = doc(db, 'companies', currentData.companyId, 'applications', `LINKED_APP_${Date.now()}`);
                 await setDoc(linkedAppRef, {
@@ -308,8 +316,9 @@ export function useSystemHealth() {
                 updateData({ linkedAppId: linkedAppRef.id });
                 addLog("✅ Recruiter Attribution Logic Verified.", "success");
                 break;
+            }
 
-            case 'sim_job_offer':
+            case 'sim_job_offer': {
                 const appRefOffer = doc(db, 'companies', currentData.companyId, 'applications', currentData.driverId);
                 await setDoc(appRefOffer, {
                     status: 'Offer Sent',
@@ -321,15 +330,17 @@ export function useSystemHealth() {
                 }, { merge: true });
                 addLog("✅ Job Offer Sent.", "success");
                 break;
+            }
 
-            case 'sim_offer_receive':
+            case 'sim_offer_receive': {
                 const checkRef = doc(db, 'companies', currentData.companyId, 'applications', currentData.driverId);
                 const snap = await getDoc(checkRef);
                 if (snap.data().status !== 'Offer Sent') throw new Error("Status update failed.");
                 addLog("✅ Driver Received Offer.", "success");
                 break;
+            }
 
-            case 'sim_safehaul_lead':
+            case 'sim_safehaul_lead': {
                 const globalLeadId = `SH_LEAD_${Date.now()}`;
                 await setDoc(doc(db, 'leads', globalLeadId), {
                     name: "SafeHaul Test Lead",
@@ -355,8 +366,9 @@ export function useSystemHealth() {
                 updateData({ globalLeadId, myLeadId });
                 addLog("✅ SafeHaul & Personal Leads Created.", "success");
                 break;
+            }
 
-            case 'sim_pdf_gen':
+            case 'sim_pdf_gen': {
                 try {
                     const pdfDoc = new jsPDF();
                     pdfDoc.text("System Health Check", 10, 10);
@@ -367,16 +379,18 @@ export function useSystemHealth() {
                     throw new Error(`PDF Engine Error: ${e.message}`);
                 }
                 break;
+            }
 
-            case 'sim_activity_log':
+            case 'sim_activity_log': {
                 const logRef = doc(collection(db, 'companies', currentData.companyId, 'applications', currentData.driverId, 'activities'));
                 await setDoc(logRef, { type: 'test', text: 'Audit Log Test', createdAt: serverTimestamp() });
                 const logSnap = await getDoc(logRef);
                 if (!logSnap.exists()) throw new Error("Activity Log failed to write.");
                 addLog("✅ Audit/Activity Logging OK.", "success");
                 break;
+            }
 
-            case 'test_visibility':
+            case 'test_visibility': {
                 const qApps = query(collection(db, 'companies', currentData.companyId, 'applications'));
                 const snapApps = await getDocs(qApps);
                 const foundApp = snapApps.docs.find(d => d.id === currentData.driverId);
@@ -405,8 +419,9 @@ export function useSystemHealth() {
 
                 addLog("✅ Dashboard Visibility Verified (Apps, Company Leads, SafeHaul, My Leads).", "success");
                 break;
+            }
 
-            case 'test_integrity':
+            case 'test_integrity': {
                 const integAppRef = doc(db, 'companies', currentData.companyId, 'applications', currentData.driverId);
                 const integSnap = await getDoc(integAppRef);
                 const storedPath = integSnap.data()['cdl-front']?.storagePath;
@@ -421,8 +436,9 @@ export function useSystemHealth() {
                     throw new Error(`Integrity Fail: File in DB but not in Storage. Path: ${storedPath}`);
                 }
                 break;
+            }
 
-            case 'cleanup':
+            case 'cleanup': {
                 addLog("🧹 Starting cleanup...", "info");
                 const data = testDataRef.current;
 
@@ -496,8 +512,9 @@ export function useSystemHealth() {
 
                 addLog("✅ All test data cleaned up.", "success");
                 break;
+            }
 
-            case 'security_audit':
+            case 'security_audit': {
                 addLog("🕵️ Running Security & Integrity Audit...", "info");
                 const auditFn = httpsCallable(functions, 'runSecurityAudit');
                 try {
@@ -520,6 +537,7 @@ export function useSystemHealth() {
                     throw new Error(`Security Audit Failed: ${e.message}`);
                 }
                 break;
+            }
 
             default:
                 addLog(`⚠️ Unknown step: ${stepId}`, "warning");
