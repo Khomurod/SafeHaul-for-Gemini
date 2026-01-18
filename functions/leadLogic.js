@@ -3,10 +3,19 @@ const { admin, db, auth } = require("./firebaseAdmin");
 const { CloudTasksClient } = require("@google-cloud/tasks");
 
 // --- CLOUD TASKS CONFIG ---
-const PROJECT_ID = "truckerapp-system";
+// Dynamic Project ID: Uses environment variable set by Firebase/GCP at runtime
+const PROJECT_ID = process.env.GCLOUD_PROJECT
+    || (process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG).projectId : null)
+    || "truckerapp-system"; // Fallback for local emulator only
+
 const LOCATION = "us-central1";
 const QUEUE_NAME = "lead-distribution-queue";
 const tasksClient = new CloudTasksClient();
+
+// Worker URL must be set after first deployment (V2 functions use Cloud Run URLs)
+// Set via: firebase functions:secrets:set DISTRIBUTION_WORKER_URL
+// Or in .env: DISTRIBUTION_WORKER_URL=https://processcompanydistribution-xxx-uc.a.run.app
+const WORKER_URL = process.env.DISTRIBUTION_WORKER_URL;
 
 // --- CONSTANTS (PRESERVED - defaults, can be overridden by system_settings) ---
 let QUOTA_FREE = 50;
@@ -69,7 +78,16 @@ async function runLeadDistribution(forceRotate = false) {
 
         // 3. Create a Cloud Task for EACH company (parallel execution)
         const queuePath = tasksClient.queuePath(PROJECT_ID, LOCATION, QUEUE_NAME);
-        const workerUrl = `https://${LOCATION}-${PROJECT_ID}.cloudfunctions.net/processCompanyDistribution`;
+
+        // CRITICAL: Validate worker URL is configured
+        if (!WORKER_URL) {
+            console.error("FATAL: DISTRIBUTION_WORKER_URL environment variable is not set.");
+            console.error("After deploying processCompanyDistribution, set this env var to the Cloud Run URL.");
+            return {
+                success: false,
+                message: "Configuration Error: DISTRIBUTION_WORKER_URL is not set. Deploy worker first, then configure the URL."
+            };
+        }
 
         const taskPromises = companies.map(async (company) => {
             const isPaid = company.planType?.toLowerCase() === 'paid';
@@ -87,7 +105,7 @@ async function runLeadDistribution(forceRotate = false) {
             const task = {
                 httpRequest: {
                     httpMethod: "POST",
-                    url: workerUrl,
+                    url: WORKER_URL,
                     headers: { "Content-Type": "application/json" },
                     body: Buffer.from(JSON.stringify(payload)).toString("base64")
                 }
