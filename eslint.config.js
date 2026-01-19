@@ -7,7 +7,7 @@ export default [
   { ignores: ['**/dist/**', '**/functions/**'] },
   js.configs.recommended,
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['**/*.{js,jsx,cjs}'],
     plugins: {
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
