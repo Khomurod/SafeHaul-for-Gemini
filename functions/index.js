@@ -110,6 +110,8 @@ exports.onActivityLogCreated = statsAggregator.onActivityLogCreated;
 exports.onLegacyActivityCreated = statsAggregator.onLegacyActivityCreated;
 exports.onLeadsActivityLogCreated = statsAggregator.onLeadsActivityLogCreated; // NEW: Leads trigger
 
+
+
 // 12. Cloud Tasks Worker
 exports.processCompanyDistribution = require('./workers/distributeWorker').processCompanyDistribution;
 
