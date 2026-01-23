@@ -105,6 +105,33 @@ exports.saveIntegrationConfig = onCall(encryptedCallOptions, async (request) => 
     }
 });
 
+exports.verifySmsConfig = onCall(encryptedCallOptions, async (request) => {
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'User must be authenticated.');
+    }
+
+    const { companyId } = request.data;
+    if (!companyId) {
+        throw new HttpsError('invalid-argument', 'Missing companyId.');
+    }
+
+    try {
+        const adapter = await SMSAdapterFactory.getAdapter(companyId);
+        if (adapter instanceof RingCentralAdapter) {
+            await adapter.rc.login({ jwt: adapter.config.jwt });
+            const idResp = await adapter.rc.get('/restapi/v1.0/account/~/extension/~');
+            const idData = await idResp.json();
+            const identity = `${idData.contact?.firstName} ${idData.contact?.lastName} (Ext: ${idData.extensionNumber}) - Acc: ${idData.account?.id}`;
+            return { success: true, message: `Successfully connected to RingCentral as ${identity}.` };
+        } else {
+            return { success: true, message: 'Configuration for this provider is valid.' };
+        }
+    } catch (error) {
+        console.error("SMS Config Verification Error:", error);
+        throw new HttpsError('internal', `Configuration check failed: ${error.message}`);
+    }
+});
+
 // --- 2. Test Connection / Diagnostic Lab ---
 exports.sendTestSMS = onCall(encryptedCallOptions, async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'User must be authenticated.');
