@@ -3,7 +3,7 @@ import { useData } from '@/context/DataContext';
 import { db, auth } from '@lib/firebase';
 import {
     collection, query, where, getDocs,
-    orderBy, limit, onSnapshot
+    orderBy, limit, onSnapshot, doc, getDoc
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useToast } from '@shared/components/feedback/ToastProvider';
@@ -95,7 +95,7 @@ export function CampaignsView() {
 
     const {
         isExecuting, handleLaunch, pauseSession,
-        resumeSession, cancelSession
+        resumeSession, cancelSession, retryFailed
     } = useCampaignExecution(companyId);
 
     // Global Session Listener
@@ -135,6 +135,14 @@ export function CampaignsView() {
         }
     };
 
+    const handleRetryFailed = async (sid) => {
+        const result = await retryFailed(sid);
+        if (result.success) {
+            setSelectedSessionId(result.sessionId);
+            setView('report');
+        }
+    };
+
     const selectedSession = pastSessions.find(s => s.id === selectedSessionId);
 
     // --- RENDER VIEWS ---
@@ -162,6 +170,7 @@ export function CampaignsView() {
                     session={selectedSession}
                     attempts={selectedSessionAttempts}
                     setView={setView}
+                    onRetryFailed={handleRetryFailed}
                 />
             </div>
         );

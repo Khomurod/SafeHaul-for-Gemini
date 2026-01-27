@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    Clock, CheckCircle, Play, Pause, XCircle, ChevronRight, Activity, AlertCircle, RefreshCw
+    Clock, CheckCircle, Play, Pause, XCircle, ChevronRight, Activity, AlertCircle, RefreshCw, Download, RotateCcw
 } from 'lucide-react';
 
 export function CampaignHistory({ sessions, selectedSessionId, setSelectedSessionId, setView, onPause, onResume, onCancel }) {
@@ -95,7 +95,7 @@ export function CampaignHistory({ sessions, selectedSessionId, setSelectedSessio
     );
 }
 
-export function CampaignReport({ session, attempts, setView }) {
+export function CampaignReport({ session, attempts, setView, onRetryFailed }) {
     if (!session) return (
         <div className="bg-white border border-slate-200 rounded-[3.5rem] p-12 shadow-sm flex items-center justify-center min-h-[500px]">
             <div className="text-center space-y-4">
@@ -131,6 +131,43 @@ export function CampaignReport({ session, attempts, setView }) {
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Execution Velocity</div>
                         <div className="text-6xl font-black text-blue-600 tracking-tighter">{percent}<span className="text-3xl">%</span></div>
                     </div>
+                </div>
+
+                {/* Action Toolbar */}
+                <div className="flex gap-4 mt-8">
+                    <button
+                        onClick={() => {
+                            const headers = ["Name", "Endpoint", "Time", "Status", "Error"];
+                            const rows = attempts.map(a => [
+                                a.recipientName,
+                                a.recipientIdentity,
+                                a.timestamp?.toDate().toLocaleString().replace(/,/g, ''),
+                                a.status,
+                                (a.errorMessage || "").replace(/,/g, ' ')
+                            ]);
+                            const csvContent = "data:text/csv;charset=utf-8,"
+                                + headers.join(",") + "\n"
+                                + rows.map(r => r.join(",")).join("\n");
+                            const link = document.createElement("a");
+                            link.setAttribute("href", encodeURI(csvContent));
+                            link.setAttribute("download", `campaign_${session.id}_report.csv`);
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                        }}
+                        className="flex items-center gap-2 px-8 py-3.5 bg-white border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
+                    >
+                        <Download size={14} /> Export CSV Report
+                    </button>
+
+                    {session.progress?.failedCount > 0 && (
+                        <button
+                            onClick={() => onRetryFailed && onRetryFailed(session.id)}
+                            className="flex items-center gap-2 px-8 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-xl active:scale-95"
+                        >
+                            <RotateCcw size={14} /> Retry {session.progress.failedCount} Failed
+                        </button>
+                    )}
                 </div>
 
                 {/* Progress Visualizer */}

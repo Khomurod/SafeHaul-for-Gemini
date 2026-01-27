@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    Filter, UserCheck, Users, Megaphone
+    Filter, UserCheck, Users, Megaphone, Calendar, ShieldX
 } from 'lucide-react';
 
 const APP_STATUSES = [
@@ -134,6 +134,25 @@ export function TargetingWizard({ filters, setFilters, teamMembers, matchCount }
                                 <option value="all">Any Outcome</option>
                                 {CALL_OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
                             </select>
+                        </div>
+                        <div className="pt-2">
+                            <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block flex items-center gap-1">
+                                <Calendar size={10} /> Schedule mission for later
+                            </label>
+                            <input
+                                type="datetime-local"
+                                value={filters.scheduledFor || ''}
+                                onChange={e => setFilters(prev => ({ ...prev, scheduledFor: e.target.value }))}
+                                className="w-full p-3 bg-blue-50/50 border border-blue-100 rounded-xl text-xs font-bold text-blue-700 outline-none focus:ring-4 focus:ring-blue-100/50"
+                            />
+                            {filters.scheduledFor && (
+                                <button
+                                    onClick={() => setFilters(prev => ({ ...prev, scheduledFor: null }))}
+                                    className="mt-1 text-[8px] font-black text-blue-600 uppercase tracking-widest hover:underline"
+                                >
+                                    Clear Schedule (Send Now)
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
