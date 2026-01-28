@@ -70,7 +70,16 @@ export function useCampaignTargeting(companyId, currentUser, isAuthLoading) {
                     // Status Filter (Mapped from Dictionary)
                     if (filters.status && filters.status.length > 0 && filters.status !== 'all') {
                         const dbStatuses = filters.status.map(s => getDbValue(s, APPLICATION_STATUSES));
-                        q = query(q, where('status', 'in', dbStatuses));
+
+                        // FIX: Firestore 'in' query limit is 10.
+                        // For preview purposes, we only query the first 10 selected statuses.
+                        // The backend 'initBulkSession' handles the full list properly.
+                        if (dbStatuses.length > 10) {
+                            console.warn("Preview limited to first 10 statuses to avoid Firestore limits.");
+                            q = query(q, where('status', 'in', dbStatuses.slice(0, 10)));
+                        } else {
+                            q = query(q, where('status', 'in', dbStatuses));
+                        }
                     }
 
                     // Recruiter Filter

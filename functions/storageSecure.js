@@ -25,10 +25,21 @@ exports.getSignedUploadUrl = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('invalid-argument', 'Invalid file type. Only PDF and Images are allowed.');
     }
 
+    // 2. Security Check: Verify Company Exists
+    try {
+        const companySnap = await db.collection('companies').doc(companyId).get();
+        if (!companySnap.exists) {
+            throw new functions.https.HttpsError('not-found', 'Invalid Company ID.');
+        }
+    } catch (dbError) {
+        console.error("Database validation failed:", dbError);
+        throw new functions.https.HttpsError('internal', 'Validation failed.');
+    }
+
     // Default to 'applications' if not specified or invalid
     const targetFolder = (folder === 'leads') ? 'leads' : 'applications';
 
-    // 2. Generate Safe Filename
+    // 3. Generate Safe Filename
     // Use timestamp + random string to prevent collisions and guessing
     const cleanFileName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -38,7 +49,7 @@ exports.getSignedUploadUrl = functions.https.onCall(async (data, context) => {
         const bucket = getStorage().bucket();
         const file = bucket.file(finalPath);
 
-        // 3. Generate Signed URL
+        // 4. Generate Signed URL
         const [url] = await file.getSignedUrl({
             version: 'v4',
             action: 'write',
