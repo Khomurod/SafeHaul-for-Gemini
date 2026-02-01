@@ -2,7 +2,7 @@
 
 **Date:** February 28, 2025
 **Auditor:** Jules (AI Software Engineer)
-**Scope:** Backend (Functions, Rules), Infrastructure, and Core Logic.
+**Scope:** Full Stack (Backend, Frontend, Infrastructure).
 
 ---
 
@@ -19,7 +19,7 @@
 *   **File:** `functions/bulkActions.js` -> `assertCompanyAdmin`
 *   **Severity:** **HIGH**
 *   **Issue:** A specific User ID (`5921L1GIU7Z7O5dq22DuMZ0dzMY2`) is hardcoded to bypass all permission checks.
-*   **Impact:** If this user account is compromised, the attacker has full access. Hardcoded credentials are a security anti-pattern, even for admins.
+*   **Impact:** If this user account is compromised, the attacker has full access. Hardcoded credentials are a security anti-pattern.
 *   **Recommendation:** Use Firebase Custom Claims (`globalRole: 'super_admin'`) instead of hardcoding UIDs in code.
 
 ### 1.3. Unprotected Public Writes (DoS Risk)
@@ -56,31 +56,25 @@
 
 ---
 
-## 🧹 3. Code Quality & Refactoring
+## 🧹 3. Code Quality & Refactoring (Backend)
 *Candidates for cleanup, splitting, and deletion.*
 
 ### 3.1. "Trash" Code & Dead Files
 *   **`temp_functions.txt`**: A large (80KB) binary/text file in the root that appears to be garbage or a backup. **Action:** Delete.
 *   **`functions/index.js`**: Contains commented-out exports (e.g., `// REMOVED: ...`) which clutter the entry point. **Action:** Remove dead lines.
-*   **`functions/leadDistribution.js`**: Contains a "PLANNING PHASE" section that is commented out and described as "useless". **Action:** Remove.
-*   **`functions/statsAggregator.js`**: Contains legacy triggers (`onLegacyActivityCreated`) for old collections. If migration is complete, these should be removed to save cloud costs.
+*   **`functions/leadDistribution.js`**: Contains a "PLANNING PHASE" section that is commented out. **Action:** Remove.
+*   **`functions/statsAggregator.js`**: Contains legacy triggers (`onLegacyActivityCreated`) for old collections.
 
 ### 3.2. Monolithic Files ("Giant Files")
-These files have grown too large and mix multiple responsibilities, making them hard to maintain and test.
+These files have grown too large and mix multiple responsibilities.
 
 *   **`functions/bulkActions.js` (1075 lines)**
     *   **Responsibilities:** Session CRUD, Validation, Worker Logic, Retry Logic, Cloud Tasks Enqueueing.
-    *   **Recommendation:** Split into:
-        *   `controllers/bulkSessionController.js` (API endpoints)
-        *   `workers/bulkBatchWorker.js` (The recursive worker)
-        *   `services/bulkRetryService.js` (Retry logic)
+    *   **Recommendation:** Split into `controllers/bulkSessionController.js` and `workers/bulkBatchWorker.js`.
 
 *   **`functions/integrations/index.js` (757 lines)**
     *   **Responsibilities:** Configuration CRUD, Testing, Sending SMS, Managing Phone Lines, Webhooks.
-    *   **Recommendation:** Split into:
-        *   `controllers/integrationConfig.js` (Save/Verify config)
-        *   `services/smsService.js` (Send/Test SMS)
-        *   `controllers/digitalWallet.js` (Add/Remove Phone Lines)
+    *   **Recommendation:** Split into `controllers/integrationConfig.js` and `services/smsService.js`.
 
 *   **`functions/leadLogic.js` (547 lines)**
     *   **Responsibilities:** Core Dealer Engine, Cleanup, Transactional Assignment, System Settings.
@@ -88,31 +82,39 @@ These files have grown too large and mix multiple responsibilities, making them 
 
 ---
 
-## ⚙️ 4. Logic & Architecture Findings
+## 🖥️ 4. Frontend Audit
+*Deep scan of the React Application.*
 
-### 4.1. Race Condition in "Shadow Profiles"
-*   **File:** `functions/driverSync.js` -> `processDriverData`
-*   **Issue:** The function checks if a driver exists (Query) and then creates one (Write) without a transaction or lock.
-*   **Impact:** If a driver submits two applications rapidly, two duplicate profiles may be created.
+### 4.1. Performance & State Management
+*   **`src/context/DataContext.jsx`**:
+    *   **Finding:** The `DataProvider` handles Authentication, User Claims, Company Profile fetching, and "Portal" selection logic all in one effect.
+    *   **Risk:** Any update to `currentUser` triggers a cascade of effects that may block the UI render. The `loading` state is global, meaning a background profile refresh could freeze the entire app.
+    *   **Recommendation:** Split `AuthProvider` (User/Claims) from `CompanyProvider` (Profile/Settings).
 
-### 4.2. N+1 Reads in Membership Sync
-*   **File:** `functions/hrAdmin.js` -> `onMembershipWrite`
-*   **Issue:** When a user joins a team, the function fetches *all* members of that team to update the company cache.
-*   **Impact:** For a company with 1,000 members, adding 1 user triggers 1,000+ reads. This is expensive and slow.
+### 4.2. Giant Frontend Components
+These components are difficult to maintain and test due to their size.
 
-### 4.3. Incomplete Cleanup Script
-*   **File:** `functions/leadLogic.js` -> `cleanupOrphanedLeadRefs`
-*   **Issue:** `maxCompanies = 10` is a default limit. The script stops after 10 companies, leaving the rest of the system dirty.
+*   **`src/features/super-admin/components/LeadPoolView.jsx` (620 lines)**
+    *   **Issues:** Mixes UI rendering with complex business logic (calculating supply deficits, handling maintenance toggles).
+    *   **Refactor:** Move calculation logic to a custom hook `useLeadPoolStats()`.
 
----
+*   **`src/features/company-admin/components/application-v2/ApplicationDetailViewV2.jsx` (488 lines)**
+    *   **Issues:** Acts as a "God Component" managing tabs, file uploads, status updates, and modals.
+    *   **Refactor:** Extract the Tab logic into a `ApplicationTabs` sub-component and the Header/Hero into `ApplicationHeader`.
 
-## 🧪 5. Test Coverage
-*   **Status:** **CRITICAL GAP**
+*   **`src/features/settings/components/NumberAssignmentManager.jsx` (445 lines)**
+    *   **Issues:** Handles fetching users, polling verification status, and rendering a complex matrix table.
+    *   **Refactor:** Extract the table row rendering to `AssignmentRow.jsx`.
+
+### 4.3. Test Coverage (Frontend)
+*   **Status:** **LOW**
 *   **Findings:**
-    *   Tests exist only for `bulkActions.js` and `email` helpers.
-    *   **NO TESTS** for the core "Dealer" logic (`leadDistribution.js`).
-    *   **NO TESTS** for security rules.
-    *   **NO TESTS** for driver sync.
+    *   `src/tests/dashboard.test.jsx` checks if the dashboard renders but uses heavy mocking. It doesn't test user interactions (clicking tabs, opening modals).
+    *   **Critical Gap:** No tests for `DriverApplicationWizard.jsx`. This is the most critical revenue-generating flow (drivers applying). If this breaks, the business stops.
+
+### 4.4. Hardcoded & Trash
+*   **Hardcoded Config:** `functions/bulkActions.js` contains a hardcoded User ID (`5921L...`).
+*   **Trash:** `public/pdf.worker.min.mjs` might be redundant if the `react-pdf` library is configured to load from CDN or node_modules.
 
 ---
 
@@ -120,14 +122,15 @@ These files have grown too large and mix multiple responsibilities, making them 
 
 ### Phase 1: Fix Critical Security (Immediate)
 1.  **Secure `saveIntegrationConfig`:** Add strict `isCompanyAdmin` check.
-2.  **Remove Backdoor:** Delete the hardcoded User ID check in `bulkActions.js` (replace with Claim check).
+2.  **Remove Backdoor:** Delete the hardcoded User ID check in `bulkActions.js`.
 3.  **App Check:** Enable App Check enforcement for public writes.
 
 ### Phase 2: Cleanup & Maintenance
 1.  **Delete Trash:** Remove `temp_functions.txt` and dead code in `index.js`.
-2.  **Split Monoliths:** Refactor `bulkActions.js` and `integrations/index.js`.
-3.  **Refactor `rebuildLeadStats`:** Use streaming/pagination.
+2.  **Split Monoliths (Backend):** Refactor `bulkActions.js` and `integrations/index.js`.
+3.  **Split Monoliths (Frontend):** Refactor `LeadPoolView` and `ApplicationDetailViewV2`.
 
 ### Phase 3: Architecture & Testing
 1.  **Write Integration Tests:** Create a test suite for the Dealer Logic.
-2.  **Transactions:** Wrap `processDriverData` in a transaction.
+2.  **Frontend Tests:** Add Cypress/Playwright E2E tests for `DriverApplicationWizard`.
+3.  **Transactions:** Wrap `processDriverData` in a transaction.
