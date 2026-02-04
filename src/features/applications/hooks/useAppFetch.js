@@ -3,17 +3,7 @@ import { doc, getDoc, collection, query, where, getDocs } from "firebase/firesto
 import { ref, getDownloadURL } from "firebase/storage";
 import { db, storage } from '@lib/firebase';
 import { getCompanyProfile } from '@features/companies/services/companyService';
-
-const simpleRetry = async (fn, retries = 3, delay = 1000) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === retries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-};
+import { simpleRetry } from '@shared/utils/retry';
 
 export function useAppFetch(companyId, applicationId) {
   const [loading, setLoading] = useState(true);

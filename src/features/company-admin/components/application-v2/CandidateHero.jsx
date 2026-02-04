@@ -116,6 +116,7 @@ export function CandidateHero({
                                             }}
                                             className="w-10 h-10 flex items-center justify-center rounded-full bg-green-100 text-green-600 hover:bg-green-200 transition-all shadow-sm hover:scale-105"
                                             title={`Call ${formatPhoneNumber(appData.phone)}`}
+                                            aria-label={`Call ${formatPhoneNumber(appData.phone)}`}
                                         >
                                             <Phone size={18} />
                                         </button>
@@ -125,6 +126,7 @@ export function CandidateHero({
                                             rel="noopener noreferrer"
                                             className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-all shadow-sm hover:scale-105"
                                             title="Open Telegram"
+                                            aria-label="Open Telegram"
                                         >
                                             <MessageCircle size={18} />
                                         </a>
@@ -135,6 +137,7 @@ export function CandidateHero({
                                         href={`mailto:${appData.email}`}
                                         className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all shadow-sm hover:scale-105"
                                         title={`Email ${appData.email}`}
+                                        aria-label={`Email ${appData.email}`}
                                     >
                                         <Mail size={18} />
                                     </a>
@@ -184,6 +187,7 @@ export function CandidateHero({
                             className="appearance-none px-4 py-2 pr-8 text-sm font-semibold border-2 border-gray-200 rounded-xl bg-white hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer transition-all shadow-sm"
                             value={currentStatus}
                             onChange={(e) => handleStatusUpdate(e.target.value)}
+                            aria-label="Update application status"
                         >
                             {STATUS_OPTIONS.map(status => (
                                 <option key={status} value={status}>{status}</option>

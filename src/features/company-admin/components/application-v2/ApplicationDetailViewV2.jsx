@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { X, Download, FileSignature, Edit2, Save, Trash2, ArrowRight, MessageSquare, Clock, Folder, UserCheck, Mail, Briefcase } from 'lucide-react';
 import { useApplicationView } from '@features/company-admin/hooks/useApplicationView';
 
@@ -25,6 +25,9 @@ export function ApplicationDetailViewV2({
     isCompanyAdmin,
     onPhoneClick
 }) {
+    const dialogTitleId = useId();
+    const panelRef = useRef(null);
+    const closeButtonRef = useRef(null);
     const {
         // From useApplicationDetails
         loading, error, appData, collectionName, fileUrls, currentStatus,
@@ -54,7 +57,19 @@ export function ApplicationDetailViewV2({
     ];
 
     const renderContent = () => {
-        if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>;
+        if (loading) {
+            return (
+                <div className="space-y-4" aria-hidden="true">
+                    <div className="h-40 rounded-xl bg-gray-200 animate-pulse" />
+                    <div className="h-16 rounded-xl bg-gray-200 animate-pulse" />
+                    <div className="space-y-3">
+                        <div className="h-6 w-2/3 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-24 bg-gray-200 rounded animate-pulse" />
+                        <div className="h-24 bg-gray-200 rounded animate-pulse" />
+                    </div>
+                </div>
+            );
+        }
         if (error) return <div className="flex items-center justify-center h-64"><p className="text-red-500">{error}</p></div>;
         if (!appData) return <div className="flex items-center justify-center h-64"><p className="text-gray-500">No data available</p></div>;
 
@@ -99,11 +114,34 @@ export function ApplicationDetailViewV2({
         }
     };
 
+    useEffect(() => {
+        closeButtonRef.current?.focus();
+    }, []);
+
+    const handleKeyDown = (event) => {
+        if (event.key === 'Escape') {
+            onClosePanel?.();
+        }
+    };
+
     return (
-        <div className="fixed inset-0 bg-slate-900/60 z-[60] backdrop-blur-sm flex justify-end transition-opacity duration-300" onClick={onClosePanel}>
-            <div className="bg-gray-50 w-[90%] md:w-[80%] lg:w-[70%] xl:w-[65%] h-full shadow-2xl flex flex-col transform transition-transform duration-300" onClick={e => e.stopPropagation()}>
+        <div
+            className="fixed inset-0 bg-slate-900/60 z-[60] backdrop-blur-sm flex justify-end transition-opacity duration-300"
+            onClick={onClosePanel}
+            onKeyDown={handleKeyDown}
+        >
+            <div
+                ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={dialogTitleId}
+                tabIndex={-1}
+                className="bg-gray-50 w-[90%] md:w-[80%] lg:w-[70%] xl:w-[65%] h-full shadow-2xl flex flex-col transform transition-transform duration-300"
+                onClick={e => e.stopPropagation()}
+            >
                 {/* Top Bar */}
                 <div className="p-4 border-b border-gray-200 bg-white flex justify-between items-center shrink-0 shadow-sm z-10">
+                    <span id={dialogTitleId} className="sr-only">Application details</span>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                             <label className="text-xs font-bold text-gray-400 uppercase">Assignee:</label>
@@ -127,13 +165,18 @@ export function ApplicationDetailViewV2({
                                         <FileSignature size={16} /> Offer
                                     </button>
                                 )}
-                                <button className="px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 text-sm transition flex items-center gap-2" onClick={handleDownloadPdf}>
+                                <button className="px-3 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 text-sm transition flex items-center gap-2" onClick={handleDownloadPdf} aria-label="Download application PDF">
                                     <Download size={16} /> PDF
                                 </button>
                             </>
                         )}
                         <div className="h-6 w-px bg-gray-300 mx-1" />
-                        <button className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition" onClick={onClosePanel}>
+                        <button
+                            ref={closeButtonRef}
+                            className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition"
+                            onClick={onClosePanel}
+                            aria-label="Close application panel"
+                        >
                             <X size={22} />
                         </button>
                     </div>
@@ -142,22 +185,63 @@ export function ApplicationDetailViewV2({
                 {/* Main Content */}
                 <div className="flex-1 overflow-y-auto">
                     <div className="p-6 space-y-5">
-                        {!loading && appData && (
-                            <CandidateHero
-                                appData={appData}
-                                currentStatus={currentStatus}
-                                handleStatusUpdate={handleStatusUpdate}
-                                canEdit={canEdit}
-                                onPhoneClick={onPhoneClick}
-                            />
+                        {!loading && appData ? (
+                            <>
+                                <CandidateHero
+                                    appData={appData}
+                                    currentStatus={currentStatus}
+                                    handleStatusUpdate={handleStatusUpdate}
+                                    canEdit={canEdit}
+                                    onPhoneClick={onPhoneClick}
+                                />
+                                <div className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm -mx-6 px-6 py-3 border-b border-gray-200">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-900 truncate">
+                                                {currentAppName || 'Application'}
+                                            </p>
+                                            <p className="text-xs text-gray-500">Status: {currentStatus}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {appData.phone && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        window.location.href = `tel:${appData.phone}`;
+                                                        if (onPhoneClick) onPhoneClick(e, appData);
+                                                    }}
+                                                    className="px-2.5 py-1.5 rounded-lg bg-green-100 text-green-700 text-xs font-semibold hover:bg-green-200 transition"
+                                                    aria-label={`Call ${appData.firstName || 'driver'}`}
+                                                >
+                                                    Call
+                                                </button>
+                                            )}
+                                            {appData.email && (
+                                                <a
+                                                    href={`mailto:${appData.email}`}
+                                                    className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-semibold hover:bg-gray-200 transition"
+                                                    aria-label={`Email ${appData.firstName || 'driver'}`}
+                                                >
+                                                    Email
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="space-y-4" aria-hidden="true">
+                                <div className="h-32 rounded-xl bg-gray-200 animate-pulse" />
+                                <div className="h-10 rounded-xl bg-gray-200 animate-pulse" />
+                            </div>
                         )}
 
-                        <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl">
+                        <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-xl border border-gray-200">
                             {navItems.map(item => (
                                 <button
                                     key={item.id}
                                     onClick={() => setActiveSection(item.id)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeSection === item.id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all border-b-2 ${activeSection === item.id ? 'bg-white text-gray-900 shadow-sm border-blue-600' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-transparent'}`}
+                                    aria-current={activeSection === item.id ? 'page' : undefined}
                                 >
                                     <item.icon size={16} />
                                     <span className="hidden sm:inline">{item.label}</span>
