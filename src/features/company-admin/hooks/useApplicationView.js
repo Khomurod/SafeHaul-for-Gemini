@@ -27,8 +27,14 @@ export function useApplicationView(companyId, applicationId, onStatusUpdate, onC
         const fetchDQFiles = async () => {
             if (!companyId || !applicationId) return;
             try {
-                const collName = collectionName || 'applications';
-                const appRef = doc(db, 'companies', companyId, collName, applicationId);
+                // FIX: Correct path for leads
+                let appRef;
+                if (collectionName === 'leads' || companyId === 'general-leads') {
+                    appRef = doc(db, "leads", applicationId);
+                } else {
+                    appRef = doc(db, "companies", companyId, collectionName || 'applications', applicationId);
+                }
+
                 const dqFilesRef = collection(appRef, 'dq_files');
                 const q = query(dqFilesRef, orderBy('createdAt', 'desc'));
                 const snapshot = await getDocs(q);

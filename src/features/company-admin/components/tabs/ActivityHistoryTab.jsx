@@ -19,8 +19,15 @@ export function ActivityHistoryTab({ companyId, applicationId, collectionName })
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const validCollection = (collectionName === 'leads') ? 'leads' : 'applications';
-            const logsRef = collection(db, "companies", companyId, validCollection, applicationId, "activity_logs");
+            let appRef;
+            // FIX: Correct path for leads
+            if (collectionName === 'leads' || companyId === 'general-leads') {
+                appRef = doc(db, "leads", applicationId);
+            } else {
+                appRef = doc(db, "companies", companyId, collectionName, applicationId);
+            }
+
+            const logsRef = collection(appRef, "activity_logs");
             const q = query(logsRef, orderBy("timestamp", "desc"));
 
             const snapshot = await getDocs(q);
