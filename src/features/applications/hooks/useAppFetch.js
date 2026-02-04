@@ -111,7 +111,29 @@ export function useAppFetch(companyId, applicationId) {
 
       if (docSnap.exists()) {
         setCollectionName(coll);
-        const data = docSnap.data();
+        let data = docSnap.data();
+
+        // HYDRATION FIX: If this is a reference doc (Company Lead), fetch original source to get files
+        if (data.originalLeadId && !isGlobal) {
+          try {
+            const originalRef = doc(db, 'leads', data.originalLeadId);
+            const originalSnap = await simpleRetry(() => getDoc(originalRef));
+            if (originalSnap.exists()) {
+              // Merge: Original Data (Files/Profile) + Company Data (Status/Notes)
+              // Company data takes precedence for conflicts (e.g. status)
+              data = {
+                ...originalSnap.data(),
+                ...data,
+                // Ensure ID checks match the currently viewed doc
+                id: docSnap.id,
+                isHydrated: true
+              };
+            }
+          } catch (err) {
+            console.warn("Failed to hydrate original lead data:", err);
+          }
+        }
+
         setAppData(data);
         setCurrentStatus(data.status || 'New Application');
         setAssignedTo(data.assignedTo || '');

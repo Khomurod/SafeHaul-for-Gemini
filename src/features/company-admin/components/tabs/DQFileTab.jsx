@@ -20,7 +20,7 @@ const DQ_FILE_TYPES = [
   "Other"
 ];
 
-export function DQFileTab({ companyId, applicationId, collectionName = 'applications' }) {
+export function DQFileTab({ companyId, applicationId, collectionName = 'applications', appData }) {
 
   const [dqFiles, setDqFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +32,13 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
 
   // --- 1. Get the correct Firestore path ---
   const dqFilesCollectionRef = useMemo(() => {
-    // Dynamic path: companies/{id}/applications OR leads/{appId}/dq_files
-    const appRef = doc(db, "companies", companyId, collectionName, applicationId);
+    // FIX: Handle 'leads' collection correctly (root level)
+    let appRef;
+    if (collectionName === 'leads' || companyId === 'general-leads') {
+      appRef = doc(db, "leads", applicationId);
+    } else {
+      appRef = doc(db, "companies", companyId, collectionName, applicationId);
+    }
     return collection(appRef, "dq_files");
   }, [companyId, applicationId, collectionName]);
 
@@ -60,14 +65,25 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
       const snapshot = await getDocs(q);
       const existingFiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-      // B. Fetch Parent Application to Check for Uploads
-      const appRef = doc(db, "companies", companyId, collectionName, applicationId);
-      const appSnap = await getDoc(appRef);
+      // B. Determine Data Source (Use prop or fetch)
+      let sourceData = appData;
+
+      if (!sourceData) {
+        let appRef;
+        if (collectionName === 'leads' || companyId === 'general-leads') {
+          appRef = doc(db, "leads", applicationId);
+        } else {
+          appRef = doc(db, "companies", companyId, collectionName, applicationId);
+        }
+        const appSnap = await getDoc(appRef);
+        if (appSnap.exists()) sourceData = appSnap.data();
+      }
 
       let newSyncs = 0;
 
-      if (appSnap.exists()) {
-        const appData = appSnap.data();
+      if (sourceData) {
+        // Use local variable to avoid confusion with prop
+        const dataToSync = sourceData;
 
         // C. Define Sync Mapping with Expiration Fields
         const syncTargets = [
@@ -80,7 +96,7 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
 
         // D. Perform Sync
         for (const target of syncTargets) {
-          const fileData = appData[target.field];
+          const fileData = dataToSync[target.field];
           // Check if file data exists and has a URL
           if (fileData && fileData.url) {
             // Check if already in DQ Files (avoid duplicates by URL)
@@ -100,8 +116,8 @@ export function DQFileTab({ companyId, applicationId, collectionName = 'applicat
               };
 
               // Add Expiration if available
-              if (target.expirationField && appData[target.expirationField]) {
-                newFilePayload.expirationDate = appData[target.expirationField];
+              if (target.expirationField && dataToSync[target.expirationField]) {
+                newFilePayload.expirationDate = dataToSync[target.expirationField];
               }
 
               // Create DQ File Entry

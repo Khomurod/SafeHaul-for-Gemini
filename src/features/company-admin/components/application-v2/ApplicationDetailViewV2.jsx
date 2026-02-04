@@ -69,7 +69,7 @@ export function ApplicationDetailViewV2({
                 </React.Suspense>;
             case 'dq':
                 return <React.Suspense fallback={<div className="h-64 flex center text-gray-400">Loading...</div>}>
-                    <DQFileTab companyId={companyId} applicationId={applicationId} collectionName={collectionName} />
+                    <DQFileTab companyId={companyId} applicationId={applicationId} collectionName={collectionName} appData={appData} />
                 </React.Suspense>;
             case 'pev':
                 return <React.Suspense fallback={<div className="h-64 flex center text-gray-400">Loading...</div>}>
