@@ -4,17 +4,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { db, storage } from '@lib/firebase';
 import { logActivity } from '@shared/utils/activityLogger';
 import { useToast } from '@shared/components/feedback';
-
-const simpleRetry = async (fn, retries = 3, delay = 1000) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === retries - 1) throw error;
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-};
+import { simpleRetry } from '@shared/utils/retry';
 
 export function useAppActions({
   companyId,
@@ -34,6 +24,20 @@ export function useAppActions({
   const { showSuccess, showError } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const STATUS_TRANSITIONS = {
+    'New Application': ['Contacted', 'Attempted', 'In Review', 'Background Check', 'Rejected', 'Disqualified'],
+    'New Lead': ['Contacted', 'Attempted', 'In Review', 'Background Check', 'Rejected', 'Disqualified'],
+    'Contacted': ['Attempted', 'In Review', 'Background Check', 'Awaiting Documents', 'Approved', 'Rejected', 'Disqualified'],
+    'Attempted': ['Contacted', 'In Review', 'Background Check', 'Rejected', 'Disqualified'],
+    'In Review': ['Background Check', 'Awaiting Documents', 'Approved', 'Rejected', 'Disqualified'],
+    'Background Check': ['Awaiting Documents', 'Approved', 'Rejected', 'Disqualified'],
+    'Awaiting Documents': ['Background Check', 'Approved', 'Rejected', 'Disqualified'],
+    'Approved': ['Offer Sent', 'Rejected', 'Disqualified'],
+    'Offer Sent': ['Approved', 'Rejected', 'Disqualified'],
+    'Rejected': [],
+    'Disqualified': []
+  };
 
   const getDocRef = () => {
     if (isGlobal) {
@@ -142,14 +146,29 @@ export function useAppActions({
     return changes.join('\n');
   };
 
+  const computePatch = (oldData, newData) => {
+    const patch = {};
+    const ignoreFields = ['updatedAt', 'lastModified', 'activity_logs', 'id'];
+    Object.keys(newData || {}).forEach(key => {
+      if (ignoreFields.includes(key)) return;
+      if (JSON.stringify(oldData?.[key]) !== JSON.stringify(newData[key])) {
+        patch[key] = newData[key] ?? null;
+      }
+    });
+    return patch;
+  };
+
   const handleSaveEdit = async (originalData, callback) => {
     if (!canEdit) return;
     setIsSaving(true);
     try {
       const docRef = getDocRef();
       const diff = computeDiff(originalData || {}, appData);
+      const patch = computePatch(originalData || {}, appData || {});
 
-      await simpleRetry(() => updateDoc(docRef, appData));
+      if (Object.keys(patch).length > 0) {
+        await simpleRetry(() => updateDoc(docRef, patch));
+      }
 
       if (!isGlobal && diff) {
         await logActivity(companyId, collectionName, applicationId, "Details Updated", diff);
@@ -173,6 +192,15 @@ export function useAppActions({
     try {
       const docRef = getDocRef();
       const oldStatus = currentStatus || 'Unknown';
+      if (newStatus === oldStatus) {
+        showSuccess(`Status already set to ${newStatus}`);
+        return;
+      }
+      const allowed = STATUS_TRANSITIONS[oldStatus];
+      if (Array.isArray(allowed) && !allowed.includes(newStatus)) {
+        showError(`Invalid status transition from ${oldStatus} to ${newStatus}.`);
+        return;
+      }
       await simpleRetry(() => updateDoc(docRef, { status: newStatus }));
 
       if (!isGlobal) {

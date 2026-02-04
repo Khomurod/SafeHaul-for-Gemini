@@ -141,11 +141,14 @@ export function PublicApplyHandler() {
       if (!uploadRes.ok) throw new Error('Upload request failed');
 
       // 3. Update Form Data
-      handleUpdateFormData(fieldName, { name: file.name, url: publicUrl, storagePath });
+      const fileData = { name: file.name, url: publicUrl, storagePath };
+      handleUpdateFormData(fieldName, fileData);
       showSuccess("File uploaded successfully.");
+      return fileData;
     } catch (error) {
       console.error("Upload Error:", error);
       showError("Upload failed. Please try again.");
+      throw error;
     } finally {
       setIsUploading(false);
     }
