@@ -22,8 +22,16 @@ export function NotesTab({ companyId, applicationId, collectionName = 'applicati
         async function init() {
             setLoading(true);
             try {
+                // FIX: Correct path for leads
+                let appRef;
+                if (collectionName === 'leads' || companyId === 'general-leads') {
+                    appRef = doc(db, "leads", applicationId);
+                } else {
+                    appRef = doc(db, "companies", companyId, collectionName, applicationId);
+                }
+
                 // 1. Fetch Local Internal Notes (Your company's private notes)
-                const notesRef = collection(db, "companies", companyId, collectionName, applicationId, "internal_notes");
+                const notesRef = collection(appRef, "internal_notes");
                 const q = query(notesRef, orderBy("createdAt", "desc"));
                 const snapshot = await getDocs(q);
 
@@ -35,8 +43,7 @@ export function NotesTab({ companyId, applicationId, collectionName = 'applicati
 
                 // 2. Fetch Shared History (Anonymized notes from previous companies)
                 // These live on the parent document in the 'sharedHistory' array
-                const parentDocRef = doc(db, "companies", companyId, collectionName, applicationId);
-                const parentSnap = await getDoc(parentDocRef);
+                const parentSnap = await getDoc(appRef);
 
                 let sharedNotes = [];
                 if (parentSnap.exists() && parentSnap.data().sharedHistory) {
@@ -85,7 +92,15 @@ export function NotesTab({ companyId, applicationId, collectionName = 'applicati
 
         setSending(true);
         try {
-            const notesRef = collection(db, "companies", companyId, collectionName, applicationId, "internal_notes");
+            // FIX: Correct path for leads
+            let appRef;
+            if (collectionName === 'leads' || companyId === 'general-leads') {
+                appRef = doc(db, "leads", applicationId);
+            } else {
+                appRef = doc(db, "companies", companyId, collectionName, applicationId);
+            }
+
+            const notesRef = collection(appRef, "internal_notes");
             await addDoc(notesRef, {
                 text: newNote,
                 author: currentUser,
