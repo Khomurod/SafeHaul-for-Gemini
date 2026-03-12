@@ -5,12 +5,10 @@ import {
     Users,
     Lock,
     AlertTriangle,
-    Play,
     Trash2,
     RotateCcw,
     Unlock,
     Upload,
-    Pause,
     TrendingUp,
     TrendingDown,
     CheckCircle,
@@ -31,27 +29,22 @@ export function LeadPoolView({ onDataUpdate }) {
         loadingBadLeads,
         loadingCompanies,
         error,
-        distributing,
         cleaning,
         recalling,
         unlocking,
         migrating,
-        maintenanceMode,
-        savingMaintenance,
         togglingCompany,
         refreshAll,
         toggleCompanyActive,
-        handleDistribute,
         handleCleanup,
         handleRecall,
         handleForceUnlock,
         handleMigrate,
-        toggleMaintenance
     } = useLeadPool();
 
     // Derived Values
     const isDeficit = supplyData?.health?.status === 'deficit';
-    const anyActionLoading = distributing || cleaning || recalling || unlocking || migrating;
+    const anyActionLoading = cleaning || recalling || unlocking || migrating;
 
     return (
         <div className="space-y-6">
@@ -78,26 +71,6 @@ export function LeadPoolView({ onDataUpdate }) {
                 <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-center gap-2">
                     <AlertTriangle size={20} />
                     {error}
-                </div>
-            )}
-
-            {/* MAINTENANCE MODE BANNER */}
-            {maintenanceMode && (
-                <div className="p-4 bg-red-100 border-2 border-red-300 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Pause className="text-red-600" size={24} />
-                        <div>
-                            <p className="font-bold text-red-800">Distribution Paused</p>
-                            <p className="text-sm text-red-600">Maintenance mode is ON. No leads will be distributed.</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={toggleMaintenance}
-                        disabled={savingMaintenance}
-                        className="px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-all"
-                    >
-                        {savingMaintenance ? <Loader2 className="animate-spin" size={18} /> : 'Resume'}
-                    </button>
                 </div>
             )}
 
@@ -165,16 +138,6 @@ export function LeadPoolView({ onDataUpdate }) {
                 <h3 className="text-lg font-bold text-gray-900 mb-4">Actions</h3>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     <ActionButton
-                        label="Distribute Now"
-                        icon={Play}
-                        onClick={() => {
-                            // Wrapper to ensure onDataUpdate is called if provided
-                            handleDistribute().then(() => onDataUpdate?.());
-                        }}
-                        loading={distributing}
-                        disabled={anyActionLoading || maintenanceMode}
-                    />
-                    <ActionButton
                         label="Cleanup Bad Leads"
                         icon={Trash2}
                         onClick={handleCleanup}
@@ -197,14 +160,6 @@ export function LeadPoolView({ onDataUpdate }) {
                         loading={migrating}
                         disabled={anyActionLoading}
                         variant="outline"
-                    />
-                    <ActionButton
-                        label={maintenanceMode ? "Resume Distribution" : "Pause Distribution"}
-                        icon={maintenanceMode ? Play : Pause}
-                        onClick={toggleMaintenance}
-                        loading={savingMaintenance}
-                        disabled={anyActionLoading}
-                        variant={maintenanceMode ? "default" : "warning"}
                     />
                     <ActionButton
                         label="Recall All Leads"

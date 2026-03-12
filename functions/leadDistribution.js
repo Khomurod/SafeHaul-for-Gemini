@@ -2,10 +2,9 @@
 
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { admin, db } = require("./firebaseAdmin"); // <--- Added admin/db imports
-const Sentry = require("@sentry/node"); // <--- Sentry for error reporting
+const { admin, db } = require("./firebaseAdmin");
+const Sentry = require("@sentry/node");
 const {
-    runLeadDistribution,
     populateLeadsFromDrivers,
     runCleanup,
     processLeadOutcome,
@@ -22,37 +21,10 @@ const RUNTIME_OPTS = {
 
 
 
-// --- 2. EXECUTION PHASE (7:00 AM Central Time) ---
-exports.runLeadDistribution = onSchedule({
-    schedule: "0 7 * * *",
-    timeZone: "America/Chicago",
-    timeoutSeconds: 540,
-    memory: '512MiB'
-}, async (event) => {
-    try {
-        console.log("Running scheduled daily EXECUTION (7:00 AM CT)...");
-        const result = await runLeadDistribution(true); // Force rotation
-        console.log("Execution result:", result);
-    } catch (error) {
-        console.error("Execution failed:", error);
-        Sentry.captureException(error); // Report to Sentry
-    }
-});
-
-// --- 2. MANUAL BUTTON (Force New Round) ---
-exports.distributeDailyLeads = onCall(RUNTIME_OPTS, async (request) => {
-    if (!request.auth || request.auth.token.roles?.globalRole !== 'super_admin') {
-        throw new HttpsError("permission-denied", "Super Admin only.");
-    }
-    try {
-        console.log("Super Admin forcing manual lead distribution round...");
-        const result = await runLeadDistribution(true);
-        return result;
-    } catch (error) {
-        Sentry.captureException(error); // Report to Sentry
-        throw new HttpsError("internal", error.message);
-    }
-});
+// --- LEAD DISTRIBUTION REMOVED ---
+// The automated daily lead distribution (7:00 AM CT) and the manual "Force Distribution"
+// trigger have been permanently removed. SafeHaul no longer uses global lead distribution.
+// Companies receive leads exclusively through private uploads and driver applications.
 
 // --- 3. CLEANUP TOOL ---
 exports.cleanupBadLeads = onCall(RUNTIME_OPTS, async (request) => {
