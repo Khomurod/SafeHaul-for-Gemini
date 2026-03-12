@@ -225,7 +225,7 @@ export async function uploadApplicationFile(companyId, userId, fieldName, file) 
         cleanName = `${base}.${ext}`;
     }
 
-    const storagePath = `${basePath}/${fieldName}/${Date.now()}_${cleanName}`;
+    const storagePath = `${basePath}/${fieldName}/${cleanName}`;
     const fileRef = ref(storage, storagePath);
 
     // RETRY LOGIC (3 attempts)

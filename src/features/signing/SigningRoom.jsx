@@ -96,9 +96,8 @@ export default function SigningRoom() {
 
         setSubmitting(true);
         try {
-            // Collect Audit Info
+            // Collect Audit Info - IP is resolved server-side from request headers
             const auditData = {
-                ip: '127.0.0.1', // Cloud Function will resolve real IP if needed
                 userAgent: navigator.userAgent,
                 timestamp: new Date().toISOString()
             };

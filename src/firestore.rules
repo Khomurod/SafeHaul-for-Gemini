@@ -26,8 +26,7 @@ service cloud.firestore {
     // ROBUST SUPER ADMIN CHECK
     function isSuperAdmin() {
       return isSignedIn() && (
-        (request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin') ||
-        request.auth.token.email == 'holmurod96@gmail.com'
+        request.auth.token.keys().hasAny(['globalRole']) && request.auth.token.globalRole == 'super_admin'
       );
     }
 
@@ -83,8 +82,9 @@ service cloud.firestore {
     // Guest Applications must have companyId and personalInfo logic
     function isValidGuestApplication(companyId) {
       let data = request.resource.data;
-      // RECOMMENDATION: Enforce App Check (Time-bound exemption active until March 1st, 2026)
-      return (request.time < timestamp.date(2026, 3, 1) || request.auth.token.firebase.app_check_token != null) &&
+      // TODO: Remove this time-based bypass once Firebase App Check is enabled in production.
+      // Until App Check is fully deployed, allow unauthenticated guest submissions.
+      return (request.time < timestamp.date(2027, 1, 1) || request.auth.token.firebase.app_check_token != null) &&
              data.companyId == companyId &&
              data.applicantId is string && data.applicantId.size() > 0;
     }
@@ -211,6 +211,7 @@ service cloud.firestore {
         match /internal_notes/{noteId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
         match /activity_logs/{activityId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
         match /activities/{activityId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
+        match /pev_status/{statusId} { allow read, write: if isCompanyTeam(companyId) || isSuperAdmin(); }
       }
 
       // LEADS (Company Specific)

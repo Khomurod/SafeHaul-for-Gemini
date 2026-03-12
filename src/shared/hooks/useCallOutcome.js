@@ -66,6 +66,7 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
     const handleSave = async (e) => {
         if (e) e.preventDefault();
         if (!auth.currentUser) return;
+        if (saving) return; // Prevent double-submit on rapid clicks
 
         if (showCallbackSelect && (!callbackDate || !callbackTime)) {
             showError("Please select a date and time for the callback.");

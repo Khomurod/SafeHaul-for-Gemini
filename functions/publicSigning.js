@@ -117,6 +117,8 @@ exports.submitPublicEnvelope = onCall({ cors: true }, async (request) => {
             signedAt: admin.firestore.FieldValue.serverTimestamp(),
             auditTrail: {
                 ...auditData,
+                // Resolve real IP server-side from the request (more reliable than client-reported)
+                ip: request.rawRequest?.ip || request.rawRequest?.headers?.['x-forwarded-for'] || 'unknown',
                 timestamp: new Date().toISOString(),
                 method: 'Public Secure Link'
             }
