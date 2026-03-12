@@ -13,7 +13,7 @@ $functions = @(
     
     # 3. Lead Distribution & Management
     "cleanupBadLeads", "handleLeadOutcome", "migrateDriversToLeads", 
-    "confirmDriverInterest", "runLeadDistribution", "planLeadDistribution", 
+    "confirmDriverInterest", "runLeadDistribution",
     "distributeDailyLeads", "getLeadSupplyAnalytics", "recallAllPlatformLeads", 
     "forceUnlockPool", "getBadLeadsAnalytics", "getCompanyDistributionStatus", 
     "processCompanyDistribution",
@@ -21,7 +21,9 @@ $functions = @(
     # 4. SMS & Messaging Integrations
     "saveIntegrationConfig", "verifySmsConfig", "sendTestSMS", "sendSMS", 
     "executeReactivationBatch", "initBulkSession", "processBulkBatch", 
-    "retryFailedAttempts", "addPhoneLine", "removePhoneLine", 
+    "retryFailedAttempts", "getFilterCount", "getFilteredLeadsPage",
+    "resumeBulkSession", "pauseBulkSession", "cancelBulkSession",
+    "addPhoneLine", "removePhoneLine", 
     "testLineConnection", "verifyLineConnection", "connectFacebookPage", 
     "facebookWebhook", "facebookWebhookV1",
     
@@ -29,7 +31,10 @@ $functions = @(
     "syncSystemStructure", "runSecurityAudit", "getSignedUploadUrl", 
     "testEmailConnection", "runMigration", "debugAppCounts", 
     "onActivityLogCreated", "onLegacyActivityCreated", "onLeadsActivityLogCreated", 
-    "backfillCompanyStats", "backfillAllStats"
+    "backfillCompanyStats", "backfillAllStats",
+
+    # 6. Engagement Engine
+    "onApplicationUpdateSegments", "onApplicationCreatedSegments", "handleOptOut"
 )
 
 $logFile = "deployment_report.md"
@@ -64,8 +69,8 @@ foreach ($func in $functions) {
         "| $func | ❌ Failed | $($duration)s |" | Out-File $logFile -Append
     }
 
-    Write-Host "Cooling down for 15 seconds..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 15
+    Write-Host "Cooling down for 10 seconds..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 10
 }
 
 Write-Host "Deployment cycle complete. Details saved to $logFile." -ForegroundColor Green

@@ -1,0 +1,130 @@
+name: Deploy Functions (Sequential)
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy" to confirm you want to deploy all functions'
+        required: true
+        default: ""
+
+jobs:
+  deploy:
+    name: Deploy all Cloud Functions one by one
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Only proceed when the confirmation input matches
+    if: ${{ github.event.inputs.confirm == 'deploy' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install function dependencies
+        working-directory: functions
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy functions sequentially
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          COOLDOWN_SECONDS=10
+
+          FUNCTIONS=(
+            # 1. Core Infrastructure & Auth
+            "createPortalUser" "deletePortalUser" "updatePortalUser" "onMembershipWrite"
+            "joinCompanyTeam" "deleteCompany"
+
+            # 2. Document Processing & Flows
+            "sealDocument" "notifySigner" "getPublicEnvelope" "submitPublicEnvelope"
+            "onApplicationSubmitted" "onLeadSubmitted" "syncDriverOnLog"
+            "syncDriverOnActivity" "sendAutomatedEmail"
+
+            # 3. Lead Distribution & Management
+            "cleanupBadLeads" "handleLeadOutcome" "migrateDriversToLeads"
+            "confirmDriverInterest" "runLeadDistribution"
+            "distributeDailyLeads" "getLeadSupplyAnalytics" "recallAllPlatformLeads"
+            "forceUnlockPool" "getBadLeadsAnalytics" "getCompanyDistributionStatus"
+            "processCompanyDistribution"
+
+            # 4. SMS & Messaging Integrations
+            "saveIntegrationConfig" "verifySmsConfig" "sendTestSMS" "sendSMS"
+            "executeReactivationBatch" "initBulkSession" "processBulkBatch"
+            "retryFailedAttempts" "getFilterCount" "getFilteredLeadsPage"
+            "resumeBulkSession" "pauseBulkSession" "cancelBulkSession"
+            "addPhoneLine" "removePhoneLine"
+            "testLineConnection" "verifyLineConnection" "connectFacebookPage"
+            "facebookWebhook" "facebookWebhookV1"
+
+            # 5. Monitoring, Tools & Stats
+            "syncSystemStructure" "runSecurityAudit" "getSignedUploadUrl"
+            "testEmailConnection" "runMigration" "debugAppCounts"
+            "onActivityLogCreated" "onLegacyActivityCreated" "onLeadsActivityLogCreated"
+            "backfillCompanyStats" "backfillAllStats"
+
+            # 6. Engagement Engine
+            "onApplicationUpdateSegments" "onApplicationCreatedSegments" "handleOptOut"
+          )
+
+          LOG_FILE="deployment_report.md"
+          printf '# Deployment Report - %s\n\n' "$(date -u)" > "$LOG_FILE"
+          printf 'Total functions: %d\n\n' "${#FUNCTIONS[@]}" >> "$LOG_FILE"
+          printf '| Function | Status | Duration |\n' >> "$LOG_FILE"
+          printf '|---|---|---|\n' >> "$LOG_FILE"
+
+          FAILED=()
+
+          for FUNC in "${FUNCTIONS[@]}"; do
+            echo "::group::Deploying $FUNC"
+            echo "--- Deploying $FUNC ---"
+            START=$(date +%s)
+
+            if firebase deploy --only "functions:$FUNC" --token "$FIREBASE_TOKEN" --non-interactive; then
+              END=$(date +%s)
+              DURATION=$(( END - START ))
+              echo "SUCCESS: $FUNC (${DURATION}s)"
+              printf '| %s | ✅ Success | %ds |\n' "$FUNC" "$DURATION" >> "$LOG_FILE"
+            else
+              END=$(date +%s)
+              DURATION=$(( END - START ))
+              echo "FAILURE: $FUNC (${DURATION}s)"
+              printf '| %s | ❌ Failed | %ds |\n' "$FUNC" "$DURATION" >> "$LOG_FILE"
+              FAILED+=("$FUNC")
+            fi
+
+            echo "::endgroup::"
+            echo "Cooling down for ${COOLDOWN_SECONDS} seconds..."
+            sleep "$COOLDOWN_SECONDS"
+          done
+
+          echo ""
+          echo "=== Deployment cycle complete ==="
+          echo "Total functions: ${#FUNCTIONS[@]}"
+          echo "Failed: ${#FAILED[@]}"
+
+          if [ "${#FAILED[@]}" -gt 0 ]; then
+            echo "Failed functions:"
+            for F in "${FAILED[@]}"; do echo "  - $F"; done
+            exit 1
+          fi
+
+      - name: Upload deployment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report
+          path: deployment_report.md
+          retention-days: 30
