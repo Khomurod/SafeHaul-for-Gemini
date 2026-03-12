@@ -43,10 +43,12 @@ FUNCTIONS=(
 )
 
 LOG_FILE="deployment_report.md"
-printf '# Deployment Report - %s\n\n' "$(date)" > "$LOG_FILE"
+printf '# Deployment Report - %s\n\n' "$(date -u)" > "$LOG_FILE"
 printf 'Total functions: %d\n\n' "${#FUNCTIONS[@]}" >> "$LOG_FILE"
 printf '| Function | Status | Duration |\n' >> "$LOG_FILE"
 printf '|---|---|---|\n' >> "$LOG_FILE"
+
+FAILED=()
 
 for FUNC in "${FUNCTIONS[@]}"; do
     echo "--- Deploying $FUNC ---"
@@ -62,10 +64,23 @@ for FUNC in "${FUNCTIONS[@]}"; do
         DURATION=$(( END - START ))
         echo "FAILURE: $FUNC (${DURATION}s)"
         printf '| %s | ❌ Failed | %ds |\n' "$FUNC" "$DURATION" >> "$LOG_FILE"
+        FAILED+=("$FUNC")
     fi
 
     echo "Cooling down for ${COOLDOWN_SECONDS} seconds..."
     sleep "$COOLDOWN_SECONDS"
 done
 
-echo "Deployment cycle complete. Details saved to $LOG_FILE."
+echo ""
+echo "=== Deployment cycle complete ==="
+echo "Total functions: ${#FUNCTIONS[@]}"
+echo "Failed: ${#FAILED[@]}"
+
+if [ "${#FAILED[@]}" -gt 0 ]; then
+    echo "Failed functions:"
+    for F in "${FAILED[@]}"; do echo "  - $F"; done
+    echo "Details saved to $LOG_FILE."
+    exit 1
+fi
+
+echo "Details saved to $LOG_FILE."
