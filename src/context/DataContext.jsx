@@ -69,7 +69,7 @@ export function DataProvider({ children }) {
           const roles = claims.roles || {};
           const companyRoleKeys = Object.keys(roles).filter(k => k !== 'globalRole');
 
-          const isSuperAdmin = claims.globalRole === 'super_admin' || roles.globalRole === 'super_admin' || user.email === 'holmurod96@gmail.com';
+          const isSuperAdmin = claims.globalRole === 'super_admin' || roles.globalRole === 'super_admin';
           const hasCompanyRoles = companyRoleKeys.length > 0;
 
           // 2. Check Driver Profile
@@ -82,19 +82,24 @@ export function DataProvider({ children }) {
           console.log('[DataContext] User claims:', claims);
           console.log('[DataContext] Profile detection:', { isDriver, hasCompanyRoles, isSuperAdmin });
 
-          // 3. Cache Platform Stats (Super Admin Only)
+          // 3. Cache Platform Stats (Super Admin Only) — skip if cached within last 10 minutes
           if (isSuperAdmin) {
             try {
-              const [companiesSnap, driversSnap] = await Promise.all([
-                getCountFromServer(collection(db, "companies")),
-                getCountFromServer(collection(db, "drivers"))
-              ]);
-              const platformStats = {
-                companies: companiesSnap.data().count || 0,
-                drivers: driversSnap.data().count || 0,
-                updatedAt: Date.now()
-              };
-              localStorage.setItem('platformStats', JSON.stringify(platformStats));
+              const cached = localStorage.getItem('platformStats');
+              const STATS_TTL_MS = 10 * 60 * 1000; // 10 minutes
+              const needsRefresh = !cached || (Date.now() - (JSON.parse(cached).cachedAt || 0)) > STATS_TTL_MS;
+              if (needsRefresh) {
+                const [companiesSnap, driversSnap] = await Promise.all([
+                  getCountFromServer(collection(db, "companies")),
+                  getCountFromServer(collection(db, "drivers"))
+                ]);
+                const platformStats = {
+                  companies: companiesSnap.data().count || 0,
+                  drivers: driversSnap.data().count || 0,
+                  cachedAt: Date.now()
+                };
+                localStorage.setItem('platformStats', JSON.stringify(platformStats));
+              }
             } catch (statsErr) {
               console.warn("Could not cache platform stats:", statsErr);
             }
@@ -175,6 +180,31 @@ export function DataProvider({ children }) {
       unsubscribe();
     };
   }, [loginToCompany]);
+
+  // Periodically force-refresh the ID token so role/claims changes propagate
+  // within 15 minutes without requiring a sign-out. Also refreshes on tab focus.
+  useEffect(() => {
+    const refreshToken = () => {
+      if (auth.currentUser) {
+        auth.currentUser.getIdToken(/* forceRefresh */ true)
+          .then((token) => {
+            // Re-read claims so DataContext reflects the updated roles immediately
+            return auth.currentUser.getIdTokenResult();
+          })
+          .then((result) => {
+            setCurrentUserClaims(result.claims);
+          })
+          .catch((err) => console.warn('[DataContext] Token refresh failed:', err));
+      }
+    };
+
+    const interval = setInterval(refreshToken, 15 * 60 * 1000); // every 15 min
+    window.addEventListener('focus', refreshToken);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', refreshToken);
+    };
+  }, []);
 
   const handlePortalSelection = async (portal) => {
     setSelectedPortal(portal);

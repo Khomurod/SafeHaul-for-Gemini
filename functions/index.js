@@ -78,6 +78,7 @@ exports.getCompanyDistributionStatus = leadDistribution.getCompanyDistributionSt
 // 6. System Integrity
 exports.syncSystemStructure = systemIntegrity.syncSystemStructure;
 exports.runSecurityAudit = systemIntegrity.runSecurityAudit;
+exports.cleanupExpiredRecruiterLinks = systemIntegrity.cleanupExpiredRecruiterLinks;
 exports.getSignedUploadUrl = require('./storageSecure').getSignedUploadUrl;
 
 // NEW: Email Testing
@@ -134,3 +135,5 @@ const blacklist = require('./blacklist');
 exports.onApplicationUpdateSegments = segments.onApplicationUpdateSegments;
 exports.onApplicationCreatedSegments = segments.onApplicationCreatedSegments;
 exports.handleOptOut = blacklist.handleOptOut;
+// 15. Server-side PDF Generation
+exports.generateApplicationPdf = require('./generatePdf').generateApplicationPdf;

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { db, auth, functions } from '@lib/firebase';
-import { addDoc, collection, serverTimestamp, doc, updateDoc, getDoc, setDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, updateDoc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { sendNotification } from '@lib/notificationService';
 import { useToast } from '@shared/components/feedback/ToastProvider';
@@ -140,27 +140,10 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
 
             await updateDoc(companyLeadRef, updateData);
 
-
-            // --- Activity Logging (Always Log) ---
-            // Write to activity_logs (modern path) which triggers statsAggregator
+            // --- Activity Logging + Internal Notes (Atomic batch) ---
+            // Both writes succeed or fail together to prevent orphaned state.
             const targetCollection = isConversion ? 'applications' : collectionName;
 
-            await addDoc(collection(db, 'companies', companyId, targetCollection, lead.id, 'activity_logs'), {
-                type: 'call',
-                action: 'Call Logged',
-                outcome: outcome,
-                outcomeLabel: outcomeLabel,
-                isContact: outcomeConfig.isContact,
-                details: `${outcomeLabel}${notes ? `: ${notes}` : ''}`,
-                dataChanged: dataChanged,
-                performedBy: auth.currentUser.uid,
-                performedByName: authorName,
-                companyId: companyId,
-                leadId: lead.id,
-                timestamp: serverTimestamp()
-            });
-
-            // --- Internal Notes ---
             let noteText = `[Call Log: ${outcomeLabel}]`;
             if (showDetailInputs && dataChanged) {
                 noteText += `\n[Updated Details]: Type: ${driverType}, Exp: ${experienceLevel}, Pos: ${position}`;
@@ -168,12 +151,34 @@ export function useCallOutcome(lead, companyId, onUpdate, onClose) {
             if (showCallbackSelect) noteText += `\n📅 Callback: ${callbackDate} at ${callbackTime}`;
             if (notes) noteText += `\n${notes}`;
 
-            await addDoc(collection(db, 'companies', companyId, targetCollection, lead.id, 'internal_notes'), {
-                text: noteText,
-                author: authorName,
-                createdAt: serverTimestamp(),
-                type: 'call_log'
-            });
+            const batch = writeBatch(db);
+            batch.set(
+                doc(collection(db, 'companies', companyId, targetCollection, lead.id, 'activity_logs')),
+                {
+                    type: 'call',
+                    action: 'Call Logged',
+                    outcome: outcome,
+                    outcomeLabel: outcomeLabel,
+                    isContact: outcomeConfig.isContact,
+                    details: `${outcomeLabel}${notes ? `: ${notes}` : ''}`,
+                    dataChanged: dataChanged,
+                    performedBy: auth.currentUser.uid,
+                    performedByName: authorName,
+                    companyId: companyId,
+                    leadId: lead.id,
+                    timestamp: serverTimestamp()
+                }
+            );
+            batch.set(
+                doc(collection(db, 'companies', companyId, targetCollection, lead.id, 'internal_notes')),
+                {
+                    text: noteText,
+                    author: authorName,
+                    createdAt: serverTimestamp(),
+                    type: 'call_log'
+                }
+            );
+            await batch.commit();
 
             // --- Global Updates (Handled by Cloud Trigger now) ---
             // The client no longer writes to drivers/{lead.id} directly to avoid permission errors.

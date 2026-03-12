@@ -243,8 +243,10 @@ service cloud.firestore {
     match /leads/{leadId} {
       allow create: if isSignedIn();
       allow read: if isSuperAdmin() || isOwner(leadId) || resource.data.userId == request.auth.uid || isEmailOwner(resource.data.email);
-      // Allow Super Admin, Owner, OR Company Team (to report outcomes to the pool)
-      allow update: if isSuperAdmin() || isOwner(leadId) || resource.data.userId == request.auth.uid || isStaff();
+      // Staff may only update a lead that is explicitly assigned to one of their companies
+      allow update: if isSuperAdmin() || isOwner(leadId) || resource.data.userId == request.auth.uid ||
+                    (isStaff() && resource.data.assignedCompanyId != null &&
+                     request.auth.token.roles.keys().hasAny([resource.data.assignedCompanyId]));
       allow delete: if isSuperAdmin();
     }
 
@@ -300,7 +302,8 @@ service cloud.firestore {
     
     // --- RECRUITER LINKS ---
     match /recruiter_links/{code} {
-      allow read: if true; // Public access to resolve links
+      // Public read only if the link is not expired (expiresAt is null or in the future)
+      allow read: if resource.data.expiresAt == null || resource.data.expiresAt > request.time;
       allow create, update: if isStaff() || isSuperAdmin(); // Staff can generate links
       allow delete: if isSuperAdmin();
     }

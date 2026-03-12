@@ -174,3 +174,45 @@ exports.runSecurityAudit = onCall({
         throw new HttpsError('internal', e.message);
     }
 });
+// --- SCHEDULED: CLEAN UP EXPIRED RECRUITER LINKS ---
+// Runs daily at 2 AM CT to delete recruiter links that have passed their expiresAt timestamp.
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+
+exports.cleanupExpiredRecruiterLinks = onSchedule({
+    schedule: '0 2 * * *',
+    timeZone: 'America/Chicago',
+    timeoutSeconds: 300,
+    memory: '256MiB'
+}, async (event) => {
+    try {
+        const now = admin.firestore.Timestamp.now();
+        const expiredSnap = await db.collection('recruiter_links')
+            .where('expiresAt', '<=', now)
+            .get();
+
+        if (expiredSnap.empty) {
+            console.log('No expired recruiter links to clean up.');
+            return;
+        }
+
+        let batch = db.batch();
+        let count = 0;
+        let total = 0;
+
+        for (const docSnap of expiredSnap.docs) {
+            batch.delete(docSnap.ref);
+            count++;
+            total++;
+            if (count >= 400) {
+                await batch.commit();
+                batch = db.batch();
+                count = 0;
+            }
+        }
+        if (count > 0) await batch.commit();
+
+        console.log(`Deleted ${total} expired recruiter links.`);
+    } catch (err) {
+        console.error('cleanupExpiredRecruiterLinks failed:', err);
+    }
+});

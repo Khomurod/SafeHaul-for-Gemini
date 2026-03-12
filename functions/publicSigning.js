@@ -24,6 +24,11 @@ exports.getPublicEnvelope = onCall({ cors: true }, async (request) => {
             throw new HttpsError('permission-denied', 'Invalid Access Token.');
         }
 
+        // Check signing link expiry (links are valid for 30 days from creation)
+        if (data.linkExpiresAt && data.linkExpiresAt.toMillis() < Date.now()) {
+            throw new HttpsError('deadline-exceeded', 'This signing link has expired. Please contact the sender for a new link.');
+        }
+
         if (data.status === 'signed') {
             return { status: 'signed', recipientName: data.recipientName };
         }

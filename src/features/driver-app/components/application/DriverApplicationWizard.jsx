@@ -209,8 +209,8 @@ export function DriverApplicationWizard({ isOpen, onClose, onSuccess, job, compa
     setFormData(newData);
   };
 
-  const handleNavigate = (direction) => {
-    saveDraft(); // Auto-save on navigation
+  const handleNavigate = async (direction) => {
+    await saveDraft(); // Auto-save before navigating
     if (direction === 'next') {
       setCurrentStep(prev => prev + 1);
     } else if (direction === 'back') {

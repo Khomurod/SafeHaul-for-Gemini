@@ -153,7 +153,9 @@ export default function EnvelopeCreator({ companyId, onClose, initialMode = 'req
     const removeField = (id) => setFields(prev => prev.filter(f => f.id !== id));
 
     const updateFieldPosition = (id, pageNum, xPercent, yPercent) => {
-        setFields(prev => prev.map(f => f.id === id ? { ...f, x: xPercent, y: yPercent, page: pageNum } : f));
+        // Clamp to [0, 95] so fields never overflow off-page
+        const clamp = (v) => Math.min(95, Math.max(0, v));
+        setFields(prev => prev.map(f => f.id === id ? { ...f, x: clamp(xPercent), y: clamp(yPercent), page: pageNum } : f));
     };
 
     const updateFieldSize = (id, widthPercent, heightPercent) => {
@@ -231,6 +233,8 @@ export default function EnvelopeCreator({ companyId, onClose, initialMode = 'req
                 alert("Template saved successfully!");
             } else {
                 const accessToken = uuidv4();
+                // Link expires in 30 days; checked server-side in getPublicEnvelope
+                const linkExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
                 await addDoc(collection(db, 'companies', companyId, 'signing_requests'), {
                     ...commonData,
                     recipientEmail,
@@ -239,6 +243,7 @@ export default function EnvelopeCreator({ companyId, onClose, initialMode = 'req
                     createdAt: serverTimestamp(),
                     senderId: auth.currentUser.uid,
                     accessToken: accessToken,
+                    linkExpiresAt: linkExpiresAt,
                     sendEmail: true
                 });
                 alert("Document sent to recipient!");
