@@ -253,7 +253,8 @@ export function addSignatureBlock(doc, y, applicantData) {
     doc.text(`Date Signed: ${sigDate}`, rightColX, contentY + 8);
     doc.text(`Printed Name: ${name}`, rightColX, contentY + 18);
 
-    // 3. SSN (Unmasked for DOT compliance in file)
+    // 3. SSN — masked in Firestore; full number is on file per DOT regulations
+    // The value here is already masked (***-**-XXXX) from the application document.
     if (applicantData.ssn) {
         doc.text(`Social Security No: ${applicantData.ssn}`, rightColX, contentY + 28);
     }

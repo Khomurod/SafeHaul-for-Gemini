@@ -14,7 +14,6 @@ export function useLeadPool() {
     const [error, setError] = useState(null);
 
     // Action loading states
-    const [distributing, setDistributing] = useState(false);
     const [cleaning, setCleaning] = useState(false);
     const [recalling, setRecalling] = useState(false);
     const [unlocking, setUnlocking] = useState(false);
@@ -112,21 +111,6 @@ export function useLeadPool() {
         }
     };
 
-    const handleDistribute = async () => {
-        if (!window.confirm("Force distribute leads to all companies NOW? This will start a new distribution round.")) return;
-        setDistributing(true);
-        try {
-            const fn = httpsCallable(functions, 'distributeDailyLeads', { timeout: 600000 });
-            const result = await fn();
-            alert(`✅ Distribution complete!\n\n${result.data.details?.join('\n') || result.data.message}`);
-            refreshAll();
-        } catch (err) {
-            alert(`❌ Distribution failed: ${err.message}`);
-        } finally {
-            setDistributing(false);
-        }
-    };
-
     const handleCleanup = async () => {
         if (!window.confirm("Remove bad/test leads from the pool? This cannot be undone.")) return;
         setCleaning(true);
@@ -208,7 +192,6 @@ export function useLeadPool() {
         loadingBadLeads,
         loadingCompanies,
         error,
-        distributing,
         cleaning,
         recalling,
         unlocking,
@@ -218,7 +201,6 @@ export function useLeadPool() {
         togglingCompany,
         refreshAll,
         toggleCompanyActive,
-        handleDistribute,
         handleCleanup,
         handleRecall,
         handleForceUnlock,

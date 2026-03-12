@@ -60,16 +60,16 @@ exports.syncDriverOnActivity = driverSync.syncDriverOnActivity;
 exports.sendAutomatedEmail = companyAdmin.sendAutomatedEmail;
 
 
-// 5. Leads & Distribution
+// 5. Leads & Pool Management
 exports.cleanupBadLeads = leadDistribution.cleanupBadLeads;
 exports.handleLeadOutcome = leadDistribution.handleLeadOutcome;
 exports.migrateDriversToLeads = leadDistribution.migrateDriversToLeads;
 exports.confirmDriverInterest = leadDistribution.confirmDriverInterest;
-exports.runLeadDistribution = leadDistribution.runLeadDistribution;
+// NOTE: runLeadDistribution (scheduled) and distributeDailyLeads (manual trigger) removed.
+// Global lead distribution is no longer part of SafeHaul.
 
-exports.distributeDailyLeads = leadDistribution.distributeDailyLeads;
 exports.getLeadSupplyAnalytics = leadDistribution.getLeadSupplyAnalytics;
-// Lead Pool Management (new)
+// Lead Pool Management (admin tools)
 exports.recallAllPlatformLeads = leadDistribution.recallAllPlatformLeads;
 exports.forceUnlockPool = leadDistribution.forceUnlockPool;
 exports.getBadLeadsAnalytics = leadDistribution.getBadLeadsAnalytics;
@@ -78,6 +78,7 @@ exports.getCompanyDistributionStatus = leadDistribution.getCompanyDistributionSt
 // 6. System Integrity
 exports.syncSystemStructure = systemIntegrity.syncSystemStructure;
 exports.runSecurityAudit = systemIntegrity.runSecurityAudit;
+exports.cleanupExpiredRecruiterLinks = systemIntegrity.cleanupExpiredRecruiterLinks;
 exports.getSignedUploadUrl = require('./storageSecure').getSignedUploadUrl;
 
 // NEW: Email Testing
@@ -134,3 +135,5 @@ const blacklist = require('./blacklist');
 exports.onApplicationUpdateSegments = segments.onApplicationUpdateSegments;
 exports.onApplicationCreatedSegments = segments.onApplicationCreatedSegments;
 exports.handleOptOut = blacklist.handleOptOut;
+// 15. Server-side PDF Generation
+exports.generateApplicationPdf = require('./generatePdf').generateApplicationPdf;

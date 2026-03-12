@@ -48,11 +48,13 @@ export function PersonalProfileTab({ currentUser, currentCompanyProfile }) {
         try {
             const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-            // 1. Save mapping
+            // 1. Save mapping with a 1-year expiry (links are renewed on regeneration)
+            const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
             await setDoc(doc(db, "recruiter_links", code), {
                 userId: uid,
                 companyId: currentCompanyProfile.id,
-                createdAt: new Date()
+                createdAt: new Date(),
+                expiresAt: expiresAt
             });
 
             // 2. Save code to user profile

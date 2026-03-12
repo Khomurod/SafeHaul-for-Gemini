@@ -225,7 +225,7 @@ export async function uploadApplicationFile(companyId, userId, fieldName, file) 
         cleanName = `${base}.${ext}`;
     }
 
-    const storagePath = `${basePath}/${fieldName}/${Date.now()}_${cleanName}`;
+    const storagePath = `${basePath}/${fieldName}/${cleanName}`;
     const fileRef = ref(storage, storagePath);
 
     // RETRY LOGIC (3 attempts)
@@ -311,9 +311,19 @@ export async function submitDriverApplication(currentUser, formData, activeCompa
     const confirmationNumber = generateConfirmationNumber();
 
     // 3. Prepare the final payload
+    // SSN is masked before writing to Firestore — only the last 4 digits are stored
+    // in the application document. The full SSN is encrypted by the Cloud Function
+    // (driverSync.js) and stored in drivers/{uid}/pending_updates (AES-256).
+    const maskSSN = (ssn) => {
+        if (!ssn) return undefined;
+        const digits = String(ssn).replace(/\D/g, '');
+        return digits.length >= 4 ? `***-**-${digits.slice(-4)}` : '***-**-****';
+    };
+
     const timestamp = serverTimestamp();
     const finalData = sanitizeData({
         ...formData,
+        ssn: maskSSN(formData.ssn), // Mask SSN in application document
         signature: formData.signature,
         signatureType: formData.signatureType || 'drawn',
         userId: currentUser.uid,

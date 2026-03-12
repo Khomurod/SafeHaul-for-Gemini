@@ -5,6 +5,7 @@ const { encrypt, decrypt } = require('../encryption');
 const RingCentralAdapter = require('../adapters/ringcentral');
 const EightByEightAdapter = require('../adapters/eightbyeight');
 const RC = require('@ringcentral/sdk').SDK;
+const { checkRateLimit } = require('../shared/rateLimiter');
 
 // Shared options for functions that need encryption capabilities
 const encryptedCallOptions = {
@@ -195,6 +196,12 @@ exports.testLineConnection = onCall(encryptedCallOptions, async (request) => {
         throw new HttpsError('unauthenticated', 'User must be logged in.');
     }
 
+    // Rate limit: max 10 test attempts per user per hour
+    const isAllowed = await checkRateLimit(`test_line_${request.auth.uid}`, 10, 3600);
+    if (!isAllowed) {
+        throw new HttpsError('resource-exhausted', 'Too many test attempts. Please wait before trying again.');
+    }
+
     const { companyId, clientId, clientSecret, jwt, isSandbox } = request.data;
 
     // Validate required fields
@@ -280,6 +287,12 @@ exports.testLineConnection = onCall(encryptedCallOptions, async (request) => {
 exports.verifyLineConnection = onCall(encryptedCallOptions, async (request) => {
     if (!request.auth) {
         throw new HttpsError('unauthenticated', 'User must be logged in.');
+    }
+
+    // Rate limit: max 10 verify attempts per user per hour
+    const isAllowed = await checkRateLimit(`verify_line_${request.auth.uid}`, 10, 3600);
+    if (!isAllowed) {
+        throw new HttpsError('resource-exhausted', 'Too many verify attempts. Please wait before trying again.');
     }
 
     const { companyId, phoneNumber } = request.data;

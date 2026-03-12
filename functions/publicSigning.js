@@ -24,6 +24,11 @@ exports.getPublicEnvelope = onCall({ cors: true }, async (request) => {
             throw new HttpsError('permission-denied', 'Invalid Access Token.');
         }
 
+        // Check signing link expiry (links are valid for 30 days from creation)
+        if (data.linkExpiresAt && data.linkExpiresAt.toMillis() < Date.now()) {
+            throw new HttpsError('deadline-exceeded', 'This signing link has expired. Please contact the sender for a new link.');
+        }
+
         if (data.status === 'signed') {
             return { status: 'signed', recipientName: data.recipientName };
         }
@@ -117,6 +122,8 @@ exports.submitPublicEnvelope = onCall({ cors: true }, async (request) => {
             signedAt: admin.firestore.FieldValue.serverTimestamp(),
             auditTrail: {
                 ...auditData,
+                // Resolve real IP server-side from the request (more reliable than client-reported)
+                ip: request.rawRequest?.ip || request.rawRequest?.headers?.['x-forwarded-for'] || 'unknown',
                 timestamp: new Date().toISOString(),
                 method: 'Public Secure Link'
             }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Section } from '../application/ApplicationUI';
 import {
     Briefcase, ChevronRight, FileText, CheckCircle, AlertCircle,
@@ -8,6 +8,8 @@ import {
 import { getFieldValue } from '@shared/utils/helpers';
 import { logActivity } from '@shared/utils/activityLogger';
 import { useToast } from '@shared/components/feedback/ToastProvider';
+import { db } from '@lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { VOEPreviewModal } from '../modals/VOEPreviewModal';
 import { PEVRequestModal } from '../modals/PEVRequestModal';
@@ -18,8 +20,7 @@ export function PEVTab({ companyId, applicationId, appData }) {
     const [showInitiateModal, setShowInitiateModal] = useState(false);
     const [showPreviewModal, setShowPreviewModal] = useState(false);
 
-    // Local state for demonstration - in production this would come from Firestore
-    // This simulates the 'status' and 'history' of verifications per employer
+    // Verification statuses are persisted to Firestore so they survive navigation
     const [verificationStatuses, setVerificationStatuses] = useState(() => {
         const initial = {};
         (appData?.employers || []).forEach((_, idx) => {
@@ -27,6 +28,17 @@ export function PEVTab({ companyId, applicationId, appData }) {
         });
         return initial;
     });
+
+    // Load persisted PEV statuses from Firestore on mount
+    useEffect(() => {
+        if (!companyId || !applicationId) return;
+        const pevRef = doc(db, 'companies', companyId, 'applications', applicationId, 'pev_status', 'statuses');
+        getDoc(pevRef).then(snap => {
+            if (snap.exists()) {
+                setVerificationStatuses(prev => ({ ...prev, ...snap.data() }));
+            }
+        }).catch(err => console.error('[PEVTab] Failed to load PEV statuses:', err));
+    }, [companyId, applicationId]);
 
     const employers = useMemo(() => appData?.employers || [], [appData]);
 
@@ -54,6 +66,22 @@ export function PEVTab({ companyId, applicationId, appData }) {
             const method = emp.deliveryMethod === 'email' ? 'Email' : emp.deliveryMethod === 'fax' ? 'Fax' : 'Manual';
             const recipient = emp.contactInfo?.email || emp.contactInfo?.fax || 'Manual Download';
 
+            const newStatus = {
+                status: 'Sent',
+                lastAction: new Date().toISOString(),
+                method,
+                recipient
+            };
+
+            // Persist status to Firestore so it survives navigation / page refreshes
+            if (companyId && applicationId) {
+                const pevRef = doc(db, 'companies', companyId, 'applications', applicationId, 'pev_status', 'statuses');
+                await setDoc(pevRef, {
+                    [emp.index]: newStatus,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            }
+
             // Log Activity with Detailed Recipient Info
             await logActivity(
                 companyId,
@@ -64,15 +92,10 @@ export function PEVTab({ companyId, applicationId, appData }) {
                 'pev'             // type
             );
 
-            // Update local state (simulate DB update including correction persistence)
+            // Update local state
             setVerificationStatuses(prev => ({
                 ...prev,
-                [emp.index]: {
-                    status: 'Sent',
-                    lastAction: new Date().toISOString(),
-                    method,
-                    recipient
-                }
+                [emp.index]: newStatus
             }));
 
             showSuccess(`Verification request sent to ${getFieldValue(emp.name)} via ${method} (${recipient})`);

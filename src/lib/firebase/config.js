@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 
 // ... Configuration remains the same ...
 const firebaseConfig = {
@@ -22,6 +23,16 @@ const firebaseConfig = {
 // Initialize Firebase with HMR safety
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
+// Initialize Firebase App Check (guards against unauthorized API usage).
+// Set VITE_RECAPTCHA_SITE_KEY in your .env files and the Firebase Console.
+// After App Check is live, remove the time-based bypass in firestore.rules.
+if (import.meta.env.VITE_RECAPTCHA_SITE_KEY) {
+  initializeAppCheck(app, {
+    provider: new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),
+    isTokenAutoRefreshEnabled: true
+  });
+}
+
 export const auth = getAuth(app);
 
 // Use memory-only cache and forced long polling to prevent "Unexpected state (ID: ca9)" 
@@ -30,22 +41,14 @@ export const auth = getAuth(app);
 // HMR Safety: Check if db is already initialized.
 let firestore;
 try {
-  // 1. Force Clear Persistence (Nuclear Option for "Unexpected State")
-  // This deletes the local IndexedDB to resolve corruption/lock contentions
-  try {
-    const dbName = 'firestore/[DEFAULT]/truckerapp-system/main';
-    const req = indexedDB.deleteDatabase(dbName);
-    req.onsuccess = () => console.log("✅ Persistence cleared");
-    req.onerror = () => console.log("⚠️ Persistence clear skipped");
-  } catch (err) { /* ignore in non-browser envs */ }
-
-  // 2. Try to initialize with custom settings first
+  // Initialize with memory-only cache and long polling to prevent
+  // "Unexpected state" assertion failures from IndexedDB transport errors.
   firestore = initializeFirestore(app, {
     localCache: memoryLocalCache(),
     experimentalForceLongPolling: true
   });
 } catch (e) {
-  // If already initialized, use existing instance
+  // If already initialized (e.g. HMR), use existing instance
   firestore = getFirestore(app);
 }
 

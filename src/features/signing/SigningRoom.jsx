@@ -5,8 +5,6 @@ import { functions } from '@lib/firebase';
 import { initializeSignatureCanvas, clearCanvas, isCanvasEmpty, getSignatureDataUrl } from '@lib/signature';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Loader2, CheckCircle, PenTool, X, ChevronRight, AlertTriangle } from 'lucide-react';
-import confetti from 'canvas-confetti';
-
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -96,9 +94,8 @@ export default function SigningRoom() {
 
         setSubmitting(true);
         try {
-            // Collect Audit Info
+            // Collect Audit Info - IP is resolved server-side from request headers
             const auditData = {
-                ip: '127.0.0.1', // Cloud Function will resolve real IP if needed
                 userAgent: navigator.userAgent,
                 timestamp: new Date().toISOString()
             };
@@ -113,7 +110,6 @@ export default function SigningRoom() {
             });
 
             setSuccess(true);
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
 
         } catch (e) {
             console.error("Submission Error:", e);
@@ -220,7 +216,7 @@ export default function SigningRoom() {
             </header>
 
             <main className="flex-1 overflow-y-auto p-8 flex justify-center bg-gray-200/50">
-                <Document file={request.pdfUrl} onLoadSuccess={({ numPages }) => setNumPages(numPages)} className="flex flex-col gap-6">
+                <Document file={request.pdfUrl} onLoadSuccess={({ numPages }) => setNumPages(numPages)} onLoadError={(err) => setError(`Failed to load document: ${err.message}`)} className="flex flex-col gap-6">
                     {Array.from(new Array(numPages), (el, index) => (
                         // FIX: 'inline-block' is CRITICAL here. 
                         // It forces the div to shrink to the PDF image size, making the coordinate system accurate.

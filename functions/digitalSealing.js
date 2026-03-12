@@ -1,21 +1,21 @@
 // functions/digitalSealing.js
-const functions = require('firebase-functions/v1');
+const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { admin, db, storage } = require('./firebaseAdmin');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // Fail-fast: If pdf-lib is missing, crash immediately at cold start
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 
-exports.sealDocument = functions.runWith({
-    memory: '1GB',
+exports.sealDocument = onDocumentUpdated({
+    document: 'companies/{companyId}/signing_requests/{requestId}',
+    memory: '1GiB',
     timeoutSeconds: 300
-}).firestore
-    .document('companies/{companyId}/signing_requests/{requestId}')
-    .onUpdate(async (change, context) => {
-        const newData = change.after.data();
-        const previousData = change.before.data();
+}, async (event) => {
+        const newData = event.data.after.data();
+        const previousData = event.data.before.data();
 
         // 1. Only run if status changed to 'pending_seal'
         if (newData.status !== 'pending_seal' || previousData.status === 'pending_seal') {
@@ -24,7 +24,7 @@ exports.sealDocument = functions.runWith({
 
         // pdf-lib is guaranteed to exist (fail-fast at cold start)
 
-        const { companyId, requestId } = context.params;
+        const { companyId, requestId } = event.params;
         const tempPdfPath = path.join(os.tmpdir(), `orig_${requestId}.pdf`);
         const outputPdfPath = path.join(os.tmpdir(), `final_${requestId}.pdf`);
         const tempSigPaths = [];
@@ -124,13 +124,17 @@ exports.sealDocument = functions.runWith({
                 }
             }
 
-            // 5. Append Enhanced Audit Trail Page
+            // 5. Compute SHA-256 hash of the original PDF for tamper detection
+            const originalHash = crypto.createHash('sha256').update(pdfBytes).digest('hex');
+
+            // 6. Append Enhanced Audit Trail Page
             const auditPage = pdfDoc.addPage();
             const auditHeight = auditPage.getHeight();
 
             auditPage.drawText('Certificate of Completion', { x: 50, y: auditHeight - 50, size: 24, font: helvetica });
             auditPage.drawText(`Envelope ID: ${requestId}`, { x: 50, y: auditHeight - 80, size: 10, font: helvetica, color: rgb(0.5, 0.5, 0.5) });
 
+            // Placeholder — final hash is computed below and stored in Firestore alongside the PDF.
             const auditLog = `
         DOCUMENT TITLE: ${newData.title || 'Untitled Document'}
         SIGNER NAME: ${newData.recipientName || 'Authorized User'}
@@ -139,10 +143,10 @@ exports.sealDocument = functions.runWith({
         IP ADDRESS: ${newData.auditTrail?.ip || 'Recorded'}
         USER AGENT: ${newData.auditTrail?.userAgent || 'N/A'}
 
-        SECURITY VERIFICATION:
+        INTEGRITY VERIFICATION:
         This document was securely signed and sealed via SafeHaul.
-        The layout and metadata are preserved in the platform's audit logs.
-        Checksum Hash: ${requestId.substring(0, 8)}-${Date.now()}
+        Original Document SHA-256: ${originalHash}
+        The signed document hash is stored separately in the platform audit log.
       `;
 
             auditPage.drawText(auditLog, {
@@ -153,9 +157,12 @@ exports.sealDocument = functions.runWith({
                 lineHeight: 16
             });
 
-            // 6. Save & Upload Final PDF
+            // 7. Save & Upload Final PDF
             const finalPdfBytes = await pdfDoc.save();
             fs.writeFileSync(outputPdfPath, finalPdfBytes);
+
+            // Compute SHA-256 hash of the final (signed) PDF
+            const signedHash = crypto.createHash('sha256').update(Buffer.from(finalPdfBytes)).digest('hex');
 
             const finalStoragePath = `secure_documents/${companyId}/completed/${requestId}_signed.pdf`;
 
@@ -164,16 +171,18 @@ exports.sealDocument = functions.runWith({
                 metadata: { contentType: 'application/pdf' }
             });
 
-            // 7. Update Firestore
-            await change.after.ref.update({
+            // 8. Update Firestore — store hashes for tamper detection
+            await event.data.after.ref.update({
                 status: 'signed',
                 signedPdfUrl: finalStoragePath,
-                completedAt: admin.firestore.FieldValue.serverTimestamp()
+                completedAt: admin.firestore.FieldValue.serverTimestamp(),
+                'auditTrail.originalDocumentHash': originalHash,
+                'auditTrail.signedDocumentHash': signedHash
             });
 
         } catch (err) {
             console.error("Sealing Failed:", err);
-            await change.after.ref.update({ status: 'error_sealing', errorLog: err.message });
+            await event.data.after.ref.update({ status: 'error_sealing', errorLog: err.message });
         } finally {
             try {
                 if (fs.existsSync(tempPdfPath)) fs.unlinkSync(tempPdfPath);
@@ -181,4 +190,4 @@ exports.sealDocument = functions.runWith({
                 tempSigPaths.forEach(p => { if (fs.existsSync(p)) fs.unlinkSync(p); });
             } catch (e) { }
         }
-    });
+});

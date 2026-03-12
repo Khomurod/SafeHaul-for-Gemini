@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
-import { db } from '@lib/firebase';
+import { db, functions } from '@lib/firebase';
 import { collection, doc, getDocs, query, orderBy } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { generateApplicationPDF } from '@shared/utils/pdfGenerator.js';
 import { getFieldValue } from '@shared/utils/helpers.js';
 import { useData } from '@/context/DataContext';
@@ -74,12 +75,30 @@ export function useApplicationView(companyId, applicationId, onStatusUpdate, onC
     const driverId = appData?.driverId || appData?.userId;
 
     // --- Handlers ---
-    const handleDownloadPdf = () => {
+    const handleDownloadPdf = async () => {
         if (!appData || !companyProfile) return;
+        try {
+            // Prefer server-side PDF generation (no local unencrypted copy)
+            const fn = httpsCallable(functions, 'generateApplicationPdf');
+            const result = await fn({ applicationId, companyId });
+            if (result.data?.url) {
+                const a = document.createElement('a');
+                a.href = result.data.url;
+                a.download = `application_${applicationId}.pdf`;
+                a.target = '_blank';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
+        } catch (serverErr) {
+            console.warn('Server-side PDF generation failed, falling back to client-side:', serverErr.message);
+        }
+        // Fallback: client-side generation (legacy path)
         try {
             generateApplicationPDF({ applicant: appData, agreements: [], company: companyProfile });
         } catch (e) {
-            alert("PDF Generation failed.");
+            alert('PDF Generation failed.');
         }
     };
 
